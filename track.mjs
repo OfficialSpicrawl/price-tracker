@@ -79,10 +79,12 @@ export function findProduct(data) {
 // Default: autoparse (JSON-LD / OpenGraph / microdata). With "price" / "stock" selectors in
 // products.json: CSS extraction instead. cache:false because Spicrawl caches results for 48h by
 // default, and a price tracker needs the page as it is now. request/read are exported for demo/.
+// The CLI escalates (mode "auto", up to 8 credits a page) because its user pays with their own key.
+// { cheap: true } is for the public demo: the plain fetch engine, never more than 1 credit.
 const usesSelectors = (p) => Boolean(p.price || p.stock);
 
-export function request(p) {
-  const base = { url: p.url, mode: "auto", cache: false };
+export function request(p, { cheap = false } = {}) {
+  const base = { url: p.url, ...(cheap ? { max_cost: 1 } : { mode: "auto" }), cache: false };
   if (!usesSelectors(p)) return { ...base, autoparse: true };
   return { ...base, extract: Object.fromEntries([["price", p.price], ["stock", p.stock]].filter(([, sel]) => sel)) };
 }

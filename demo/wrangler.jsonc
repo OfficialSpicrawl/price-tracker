@@ -6,9 +6,13 @@
   "compatibility_date": "2026-09-26",
   "compatibility_flags": ["nodejs_compat"],
   "routes": [{ "pattern": "price-tracker.spicrawl.com", "custom_domain": true }],
-  // 5 checks per minute per visitor IP (the Worker keys it by CF-Connecting-IP). period must be 10 or 60.
+  // Served only on the custom domain: no *.workers.dev URL and no preview URLs, which would bypass the guards' hostname.
+  "workers_dev": false,
+  "preview_urls": false,
+  // 5 checks per minute per visitor (the Worker keys it by CF-Connecting-IP, an IPv6 address by its /64). period must be 10 or 60.
   "ratelimits": [{ "name": "LIMITER", "namespace_id": "2026102302", "simple": { "limit": 5, "period": 60 } }],
   "analytics_engine_datasets": [{ "binding": "EVENTS", "dataset": "spicrawl_demo_events" }],
   // Cloudflare Web Analytics token; leave empty for no analytics script.
   "vars": { "BEACON_TOKEN": "" }
+  // Secrets: SPICRAWL_API_KEY, and optionally TURNSTILE_SITE_KEY + TURNSTILE_SECRET (see demo/README.md).
 }

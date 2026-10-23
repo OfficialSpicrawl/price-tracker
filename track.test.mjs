@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Spicrawl } from "@spicrawl/sdk";
-import { track, notify, parsePrice, findProduct } from "./track.mjs";
+import { track, notify, parsePrice, findProduct, request } from "./track.mjs";
 
 // A stand-in for fetch that answers POST /v1/scrape the way the API does: the JSON envelope in the
 // body, billing and engine info in X-* headers (the SDK reads both). `pages` maps a product URL to
@@ -176,4 +176,13 @@ test("parsePrice and findProduct handle other price formats and OpenGraph keys",
   const live = { meta: { title: "Tree Runner" }, open_graph: { type: "product", "price:amount": "100.00", "price:currency": "USD" } };
   assert.deepEqual(findProduct(live), { price: 100, currency: "USD", inStock: null });
   assert.deepEqual(findProduct({ unrelated: { price: "5" } }), { price: null, currency: null, inStock: null });
+});
+
+test("request: the CLI escalates with mode auto; { cheap: true } (the public demo) is a plain fetch capped at 1 credit", () => {
+  const p = { url: URL_A };
+  assert.deepEqual(request(p), { url: URL_A, mode: "auto", cache: false, autoparse: true });
+  assert.deepEqual(request(p, { cheap: true }), { url: URL_A, max_cost: 1, cache: false, autoparse: true });
+  const sel = { url: URL_A, price: ".p" };
+  assert.deepEqual(request(sel), { url: URL_A, mode: "auto", cache: false, extract: { price: ".p" } });
+  assert.deepEqual(request(sel, { cheap: true }), { url: URL_A, max_cost: 1, cache: false, extract: { price: ".p" } });
 });

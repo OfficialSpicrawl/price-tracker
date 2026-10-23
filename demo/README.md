@@ -1,10 +1,10 @@
 # Live demo (Cloudflare Worker)
 
-A one-page demo of the price tracker, served at <https://price-tracker.spicrawl.com>. A visitor pastes a product URL (optionally a CSS selector for the price) and the Worker checks it with Spicrawl: the same call as `track.mjs` (`mode: "auto"`, `cache: false`, autoparse or selector extract), parsed with the CLI's own `findProduct` / `parsePrice` (imported from `../track.mjs`).
+A one-page demo of the price tracker, served at <https://price-tracker.spicrawl.com>. A visitor pastes a product URL (optionally a CSS selector for the price) and the Worker checks it with Spicrawl: the CLI's own request (`request` from `../track.mjs`, autoparse or selector extract, `cache: false`) in its capped form, `request(p, { cheap: true })`: `max_cost: 1`, which caps every check at 1 credit (Spicrawl picks the engine itself and ignores an `engine` field). The CLI keeps `mode: "auto"`, which may escalate to 3 or 8 credits a page; the public demo must not, so pages that need JavaScript or pass a bot challenge come back as "Blocked/unavailable". The answer is parsed with the CLI's own `findProduct` / `parsePrice`.
 
 | File | What it is |
 |---|---|
-| `wrangler.jsonc` | Worker config: custom domain, rate limit, Analytics Engine dataset |
+| `wrangler.jsonc` | Worker config: custom domain only (`workers_dev` and `preview_urls` off), rate limit, Analytics Engine dataset |
 | `src/worker.mjs` | `GET /` serves the page, `POST /api/price` checks one URL |
 | `src/page.mjs` | The page: one HTML string with inline CSS and a small inline script, no build |
 | `test/worker.test.mjs` | `node:test` with a stubbed env and stubbed `fetch` (no network, no credits) |
@@ -44,20 +44,38 @@ The route is a Workers custom domain (`price-tracker.spicrawl.com`); Cloudflare 
 
 | Setting | Where | Meaning |
 |---|---|---|
-| `SPICRAWL_API_KEY` | secret | Key used for every check and for the credit guard |
+| `SPICRAWL_API_KEY` | secret | Key used for every check and for the credit guard. It needs the scope that reads `/v1/usage/summary`, or the credit guard refuses every check |
+| `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET` | secrets (optional) | Both set: the page shows a Cloudflare Turnstile widget and every check needs a token Cloudflare accepts (see below). Both unset: no widget, no verification. Only one set: checks are refused with "not configured" rather than silently running without it |
 | `BEACON_TOKEN` | `vars` in `wrangler.jsonc` | Cloudflare Web Analytics token. Empty (the default) adds no analytics script. Otherwise the page includes `<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "..."}'>` |
-| `LIMITER` | `ratelimits` | 5 checks per 60 seconds per visitor IP (`CF-Connecting-IP`), namespace `2026102302` |
+| `LIMITER` | `ratelimits` | 5 checks per 60 seconds per visitor (`CF-Connecting-IP`; an IPv6 visitor is keyed on its /64), namespace `2026102302` |
 | `EVENTS` | `analytics_engine_datasets` | Dataset `spicrawl_demo_events`, one data point per `/api/price` call |
 
 ## Guards
 
 Every check, in this order:
 
-1. JSON body only (`content-type: application/json`, max 8 KB). This also stops other sites from posting to it from a browser.
-2. `url`: http or https only, at most 2048 characters. IP-address hosts (IPv4 in any notation, IPv6), single-label names such as `localhost`, and `*.local`, `*.internal`, `*.localhost` are refused, which covers loopback and private ranges. A public name that resolves to a private address (like `127.0.0.1.nip.io`) is stopped by Spicrawl's own SSRF protection, not by the Worker.
+1. JSON body only (`content-type: application/json`). A numeric `Content-Length` of at most 4096 bytes is required and is checked before the body is read: none or a non-number is HTTP 411, over 4096 is HTTP 413. This also stops other sites from posting to it from a browser.
+2. `url`: http or https only, at most 2048 characters, no `user:password@`. All trailing dots are stripped before the host is checked, so `127.0.0.1..` and `localhost..` are not a way round it, and the stripped host is the one that is fetched. IP-address hosts (IPv4 in any notation, IPv6), single-label names such as `localhost`, and `*.local`, `*.internal`, `*.localhost`, `*.localdomain`, `*.lan`, `*.home.arpa` are refused, which covers loopback and private ranges. A public name that resolves to a private address (like `127.0.0.1.nip.io`) is stopped by Spicrawl's own SSRF protection, not by the Worker.
 3. `selector`: text, at most 200 characters.
-4. Rate limit: 5 per minute per IP, then HTTP 429 with a message and `Retry-After: 60`.
-5. Credit guard: `GET https://api.spicrawl.com/v1/usage/summary` with the key. Below 100 credits left (`allowance.remaining_micro / 1e6`, ignored when `allowance.unlimited`) the check is refused with "The demo has used its credits for this month — run it yourself with a free key" and the commands to do so. The summary is cached for 60 seconds with `caches.default`, so at most one summary call per minute per data center. If the summary cannot be read the check goes ahead; the API still enforces its own limit and the Worker maps that to the same message.
+4. Rate limit: 5 per minute per visitor, then HTTP 429 with a message and `Retry-After: 60`. The key is the raw `CF-Connecting-IP`; an IPv6 address is cut to its /64 first (written out in full, so `2001:db8::1` and `2001:db8::2` share a key), because one subscriber controls a whole /64.
+5. Turnstile, only when `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET` are both set: the token the widget put in the body (`turnstile`, at most 2048 characters) is verified with `POST https://challenges.cloudflare.com/turnstile/v0/siteverify` (secret, token, visitor IP) before any credit is touched. A missing, rejected or unverifiable token is HTTP 403. The CSP then also allows `challenges.cloudflare.com` for scripts and frames. Create the widget in the Cloudflare dashboard (Turnstile, hostname `price-tracker.spicrawl.com`), then:
+
+   ```sh
+   npx wrangler secret put TURNSTILE_SITE_KEY --config demo/wrangler.jsonc
+   npx wrangler secret put TURNSTILE_SECRET --config demo/wrangler.jsonc
+   ```
+
+   For local dev, add both to `demo/.dev.vars`; Cloudflare's always-pass test keys are `1x00000000000000000000AA` (site key) and `1x0000000000000000000000000000000AA` (secret).
+6. Credit guard: `GET https://api.spicrawl.com/v1/usage/summary` with the key, cached for 60 seconds with `caches.default` (at most one summary call per minute per data center). It fails closed: if the summary cannot be read (error, key without the read scope, no `allowance`, a number that is not a number) the check is refused with "The demo can't check its credit balance right now", and a failed read is not cached. From `allowance` it then refuses a check when
+   - fewer than 100 credits are left (`remaining_micro / 1e6`): "The demo has used its credits for this month — run it yourself with a free key", or
+   - the demo is ahead of pace: credits used (`limit_micro - remaining_micro`) exceed `limit_micro * (elapsed / window) + 5% of limit_micro`, where `elapsed / window` is how far through the allowance month (`window_start` to `resets_at`) it is now: "Today's share of the demo's credits is used up. Try again tomorrow, or track it yourself with a free key". One busy day cannot drain the month.
+
+   `allowance.unlimited` skips both checks. Both refusals are HTTP 503 `no_credits` with the commands to run it yourself; the unreadable-summary refusal is HTTP 503 `error`.
+7. The Spicrawl call itself carries `max_cost: 1`, so a single check can never cost more than 1 credit, whatever the page is.
+
+Every response carries `X-Content-Type-Options: nosniff`. The page also gets a Content-Security-Policy with a fresh nonce per load (`cache-control: no-cache`, so no shared copy): `default-src 'none'`; scripts only with that nonce plus `static.cloudflareinsights.com` for the optional analytics beacon; styles inline plus Google Fonts; fonts from `fonts.gstatic.com`; `img-src data:`; `connect-src 'self'` plus `cloudflareinsights.com`; `base-uri`, `form-action` and `frame-ancestors` all `'none'`.
+
+`wrangler.jsonc` sets `workers_dev: false` and `preview_urls: false`, so the Worker answers only on `price-tracker.spicrawl.com`, never on a `*.workers.dev` or preview URL.
 
 SDK errors are turned into plain messages (bad key, out of credits, site unreachable, busy, timeout). Error text from the API is never returned, and the log line for a failed check holds only the error code and request id.
 
@@ -70,10 +88,10 @@ SDK errors are turned into plain messages (bad key, out of credits, site unreach
 | `found` | 200 | `title`, `price`, `currency`, `inStock` (true, false or null), `credits`, `engine`, `host`, `status` |
 | `not_found` | 200 | The page answered but no price was found; `message` suggests the selector field |
 | `blocked` | 200 | The site answered HTTP 400 or above, or could not be reached; `message` says "Blocked/unavailable" |
-| `invalid` | 400 | Input refused by a guard |
+| `invalid` | 400, 403, 411, 413 | Input refused by a guard (403: Turnstile token missing or rejected; 411/413: Content-Length missing or over 4096) |
 | `rate_limited` | 429 | Over 5 per minute |
-| `no_credits` | 503 | Credit guard, or Spicrawl answered 402. Includes `commands` |
-| `error` | 502, 503, 504 | Anything else, with a friendly `message` |
+| `no_credits` | 503 | Credit guard (used up or ahead of pace), or Spicrawl answered 402. Includes `commands` |
+| `error` | 502, 503, 504 | Anything else, with a friendly `message`; also the credit guard when the usage summary cannot be read |
 
 ## Analytics
 
@@ -106,4 +124,4 @@ curl "https://api.cloudflare.com/client/v4/accounts/036bd64d65479473f0effc8c4fb1
 npm test
 ```
 
-Runs the CLI tests and `demo/test/worker.test.mjs`. The demo tests stub the Worker env (key, limiter, analytics) and `fetch`, so nothing leaves your machine. They cover the page, autoparse and selector checks, not-found, blocked, every input guard, the rate limit, the credit guard and its cache, SDK errors, and that the key never appears in a response.
+Runs the CLI tests and `demo/test/worker.test.mjs`. The demo tests stub the Worker env (key, limiter, analytics) and `fetch`, so nothing leaves your machine. They cover the page and its security headers, autoparse and selector checks (including the 1-credit plain-fetch request), not-found, blocked, every input guard (host tricks, credentials, body size), the rate limit and its IPv6 key, Turnstile on and off, the credit guard (fail-closed, pace) and its cache, the `wrangler.jsonc` settings, SDK errors, and that the key never appears in a response.

@@ -63,6 +63,7 @@ details > div { padding-top: 8px; }
 .primary:hover { background: #E4E5E7; }
 .primary[aria-disabled=true] { cursor: progress; opacity: 0.7; }
 .primary:focus-visible { outline-offset: 3px; }
+.cf-turnstile { margin: 0 0 16px; }
 .fine { font-size: 13px; color: var(--muted); margin: 12px 0 0; }
 
 .eyebrow { font: 500 12px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
@@ -148,6 +149,7 @@ const SCRIPT = `
   form.addEventListener("submit", function (e) {
     e.preventDefault();
     if (busy) return;
+    var ts = form.elements["cf-turnstile-response"]; // added by the Turnstile widget, once it has loaded; absent when it is off
     busy = true;
     go.setAttribute("aria-disabled", "true");
     go.textContent = "Checking...";
@@ -156,7 +158,7 @@ const SCRIPT = `
     fetch("/api/price", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ url: url.value.trim(), selector: sel.value.trim() || undefined })
+      body: JSON.stringify({ url: url.value.trim(), selector: sel.value.trim() || undefined, turnstile: ts ? ts.value : undefined })
     })
       .then(function (r) { return r.json(); })
       .catch(function () { return { outcome: "error", message: "Could not reach the demo. Check your connection and try again." }; })
@@ -165,6 +167,7 @@ const SCRIPT = `
         go.removeAttribute("aria-disabled");
         go.textContent = "Check price";
         out.removeAttribute("aria-busy");
+        if (ts && window.turnstile) window.turnstile.reset(); // a token works once; ts exists only when the widget is on
         render(d);
       });
   });
@@ -192,10 +195,15 @@ const PRODUCTS_JSON = `[
 ]`;
 
 // beaconToken: Cloudflare Web Analytics token; empty means no analytics script.
-export function page({ beaconToken = "" } = {}) {
+// nonce: the per-request CSP nonce for the inline script. turnstileSiteKey: set to show the Turnstile widget.
+export function page({ beaconToken = "", nonce = "", turnstileSiteKey = "" } = {}) {
   const beacon = /^[\w-]+$/.test(beaconToken)
     ? `<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "${beaconToken}"}'></script>`
     : "";
+  const turnstile = turnstileSiteKey
+    ? `<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>`
+    : "";
+  const widget = turnstileSiteKey ? `<div class="cf-turnstile" data-sitekey="${esc(turnstileSiteKey)}" data-theme="dark"></div>` : "";
   const examples = EXAMPLES.map(
     (x) => `<button type="button" class="chip" data-url="${esc(x.url)}" data-selector="${esc(x.selector)}">${esc(x.label)}</button>`,
   ).join("\n        ");
@@ -215,6 +223,7 @@ export function page({ beaconToken = "" } = {}) {
 <link rel="stylesheet" href="${FONTS}">
 <style>${CSS}</style>
 ${beacon}
+${turnstile}
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -226,7 +235,7 @@ ${beacon}
 </header>
 <main id="main" class="wrap">
   <h1>Check a product price</h1>
-  <p class="lead">Paste a product page. Spicrawl fetches it and reads the price, currency and stock, with the same call the open-source tracker makes.</p>
+  <p class="lead">Paste a product page. Spicrawl fetches it and reads the price, currency and stock, with the open-source tracker's own parser.</p>
 
   <form id="f" class="card">
     <label for="url">Product URL</label>
@@ -243,8 +252,9 @@ ${beacon}
         <p class="hint">For pages without structured data. Spicrawl extracts just that element, for example <code>.price_color</code>.</p>
       </div>
     </details>
+    ${widget}
     <button id="go" class="primary" type="submit">Check price</button>
-    <p class="fine">Each check uses 1 or more credits from a shared demo key. Limit: 5 checks per minute.</p>
+    <p class="fine">Each check uses at most 1 credit from a shared demo key and fetches the page without a browser, so JavaScript-heavy or bot-protected shops may come back blocked. Limit: 5 checks per minute.</p>
   </form>
 
   <div id="out" role="status" aria-live="polite"></div>
@@ -267,7 +277,7 @@ export SPICRAWL_API_KEY=spicrawl_live_...</code></pre>
   </section>
 </main>
 <footer class="wrap">Built on the <a href="https://docs.spicrawl.com">Spicrawl API</a>. Prices are read from the page as it is right now.</footer>
-<script>${SCRIPT}</script>
+<script nonce="${esc(nonce)}">${SCRIPT}</script>
 </body>
 </html>
 `;
