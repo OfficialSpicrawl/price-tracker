@@ -1,0 +1,5 @@
+node_modules/
+# copied from node_modules / the landing repo by BRAND.md "Workspace"; re-copy to render
+public/fonts/
+out/review/
+out/**/work/

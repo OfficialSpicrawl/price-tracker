@@ -1,7 +1,9 @@
 # price-tracker: price and stock monitoring for any online store
 
 [![test](https://github.com/OfficialSpicrawl/price-tracker/actions/workflows/test.yml/badge.svg)](https://github.com/OfficialSpicrawl/price-tracker/actions/workflows/test.yml)
-[Live demo](https://price-tracker.spicrawl.com) · [Demo video](videos/) · Apache-2.0
+[Live demo](https://price-tracker.spicrawl.com) · [Demo video (MP4)](videos/out/price-tracker/v1/price-tracker.mp4) · Apache-2.0
+
+![price-tracker demo](videos/out/price-tracker/v1/price-tracker.gif)
 
 Open-source **price tracker** and **stock monitor**: point it at product pages on Shopify and most e-commerce stores, read the price from the page's JSON-LD / OpenGraph data (no selectors needed), and get **Discord or Slack alerts** on price drops, target prices and restocks. Run it from cron or **GitHub Actions**, or as a **Claude Code / Codex agent skill** for AI agents.
 
