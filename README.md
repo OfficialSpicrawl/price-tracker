@@ -5,6 +5,8 @@
 
 Open-source **price tracker** and **stock monitor**: point it at product pages on Shopify and most e-commerce stores, read the price from the page's JSON-LD / OpenGraph data (no selectors needed), and get **Discord or Slack alerts** on price drops, target prices and restocks. Run it from cron or **GitHub Actions**, or as a **Claude Code / Codex agent skill** for AI agents.
 
+**Install as an agent skill** (Claude Code, Codex, Cursor and more): `npx skills add OfficialSpicrawl/price-tracker`, then run `npm install` in the installed folder. Or clone it and run it yourself:
+
 Watches product pages and tells you when a price drops, falls to your target, or an item comes back in stock. It uses the [Spicrawl](https://docs.spicrawl.com) web scraping API through [`@spicrawl/sdk`](https://github.com/OfficialSpicrawl/sdk), in one file (`track.mjs`) with no build step.
 
 It alerts when:
