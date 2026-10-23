@@ -1,0 +1,15 @@
+[
+  {
+    "name": "A Light in the Attic",
+    "url": "https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html",
+    "target": 45,
+    "price": ".product_main .price_color",
+    "stock": ".product_main .availability"
+  },
+  {
+    "name": "Tipping the Velvet",
+    "url": "https://books.toscrape.com/catalogue/tipping-the-velvet_999/index.html",
+    "price": ".product_main .price_color",
+    "stock": ".product_main .availability"
+  }
+]

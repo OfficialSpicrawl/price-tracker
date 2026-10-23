@@ -1,0 +1,4 @@
+node_modules/
+.prices.json
+.dev.vars
+.wrangler/

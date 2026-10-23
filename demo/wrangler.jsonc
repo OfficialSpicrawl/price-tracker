@@ -1,0 +1,14 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "spicrawl-price-tracker-demo",
+  "main": "src/worker.mjs",
+  "account_id": "036bd64d65479473f0effc8c4fb126ff",
+  "compatibility_date": "2026-09-26",
+  "compatibility_flags": ["nodejs_compat"],
+  "routes": [{ "pattern": "price-tracker.spicrawl.com", "custom_domain": true }],
+  // 5 checks per minute per visitor IP (the Worker keys it by CF-Connecting-IP). period must be 10 or 60.
+  "ratelimits": [{ "name": "LIMITER", "namespace_id": "2026102302", "simple": { "limit": 5, "period": 60 } }],
+  "analytics_engine_datasets": [{ "binding": "EVENTS", "dataset": "spicrawl_demo_events" }],
+  // Cloudflare Web Analytics token; leave empty for no analytics script.
+  "vars": { "BEACON_TOKEN": "" }
+}

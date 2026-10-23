@@ -1,0 +1,26 @@
+{
+  "name": "spicrawl-price-tracker",
+  "version": "1.0.0",
+  "description": "Track product prices and stock with the Spicrawl web scraping API; alerts via Discord or Slack.",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "price-tracker": "track.mjs"
+  },
+  "scripts": {
+    "start": "node track.mjs",
+    "test": "node --test track.test.mjs demo/test/worker.test.mjs",
+    "demo:dev": "wrangler dev --config demo/wrangler.jsonc",
+    "demo:deploy": "wrangler deploy --config demo/wrangler.jsonc"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@spicrawl/sdk": "^0.1.3"
+  },
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "wrangler": "4.150.0"
+  }
+}
