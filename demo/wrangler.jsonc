@@ -13,6 +13,6 @@
   "ratelimits": [{ "name": "LIMITER", "namespace_id": "2026102302", "simple": { "limit": 5, "period": 60 } }],
   "analytics_engine_datasets": [{ "binding": "EVENTS", "dataset": "spicrawl_demo_events" }],
   // Cloudflare Web Analytics token; leave empty for no analytics script.
-  "vars": { "BEACON_TOKEN": "" }
+  "vars": { "BEACON_TOKEN": "a922203c2b6a47878bf8c8a324898e92", "OPENPANEL_CLIENT_ID": "aefb6c53-27d1-4191-875c-f1605b9e6f26", "OPENPANEL_API_URL": "https://op.yupcha.com/api" }
   // Secrets: SPICRAWL_API_KEY, and optionally TURNSTILE_SITE_KEY + TURNSTILE_SECRET (see demo/README.md).
 }
