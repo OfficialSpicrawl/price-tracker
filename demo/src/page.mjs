@@ -14,14 +14,17 @@ const SDK_URL = "https://github.com/OfficialSpicrawl/sdk";
 const OG_IMAGE = `${SITE}/og.png`; // the Worker redirects it to launch/social-preview.png in the repo
 
 // Geist and Geist Mono (OFL, vercel/geist-font), self-hosted as woff2 subsets (served by the Worker, see vendor/build.mjs);
-// Righteous only for the Spicrawl wordmark, subset to its eight letters.
+// Righteous (OFL, the Spicrawl landing display face) for the hero h1 and the wordmark: a basic-Latin subset, 400 only. Its fallback face
+// is Arial scaled to Righteous's width and vertical metrics, so the swap moves nothing (measured on the headline; redo if the headline changes).
 const LATIN = "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD";
 const FONT_FACES = `
 @font-face { font-family: "Geist"; font-weight: 100 900; font-display: swap; src: url(/fonts/geist.woff2) format("woff2"); unicode-range: ${LATIN}; }
 @font-face { font-family: "Geist Mono"; font-weight: 100 900; font-display: swap; src: url(/fonts/geist-mono.woff2) format("woff2"); unicode-range: ${LATIN}; }
 @font-face { font-family: "Geist Mono"; font-weight: 100 900; font-display: swap; src: url(/fonts/geist-mono-symbols.woff2) format("woff2"); unicode-range: U+2000-2001, U+2004-2008, U+200A, U+23B8-23BD, U+2500-259F; }
-@font-face { font-family: "Righteous"; font-weight: 400; font-display: swap; src: url(/fonts/wordmark.woff2) format("woff2"); unicode-range: U+53, U+61, U+63, U+69, U+6c, U+70, U+72, U+77; }`;
-const FONT_PRELOAD = `<link rel="preload" href="/fonts/geist.woff2" as="font" type="font/woff2" crossorigin>
+@font-face { font-family: "Righteous"; font-weight: 400; font-display: swap; src: url(/fonts/righteous.woff2) format("woff2"); unicode-range: U+20-7E, U+A0, U+2013-2014, U+2018-2019, U+201C-201D; }
+@font-face { font-family: "Righteous Fallback"; font-weight: 400; src: local("Arial"), local("Helvetica Neue"), local("Liberation Sans"); size-adjust: 105.3%; ascent-override: 93.5%; descent-override: 24.4%; line-gap-override: 0%; }`;
+const FONT_PRELOAD = `<link rel="preload" href="/fonts/righteous.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/geist.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/fonts/geist-mono.woff2" as="font" type="font/woff2" crossorigin>`;
 
 const TITLE = "Price tracker by Spicrawl: get alerted when a price drops";
@@ -34,6 +37,7 @@ const CSS = `${FONT_FACES}
   --ink: #F9F9F9; --muted: #A9ADB2; --dim: #8A8E94;
   --r: 10px; --col: 576px; --gut: 16px; --ease: cubic-bezier(0.165, 0.84, 0.44, 1);
   --ui: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --display: "Righteous", "Righteous Fallback", var(--ui);
   --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   color-scheme: dark;
 }
@@ -51,6 +55,7 @@ a { color: inherit; text-underline-offset: 3px; }
 .mono, code, pre { font-family: var(--mono); }
 h1, p, pre, figure { margin: 0; }
 h1 { font-size: clamp(40px, 7vw, 72px); line-height: 1.05; letter-spacing: -0.03em; font-weight: 600; text-wrap: balance; }
+#top-h { font-family: var(--display); font-weight: 400; letter-spacing: -0.01em; }
 .sub { font-size: clamp(17px, 2vw, 20px); color: var(--muted); }
 .tiny { font: 400 13px/1.4 var(--mono); color: var(--muted); }
 

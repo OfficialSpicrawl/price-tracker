@@ -1,7 +1,7 @@
 // Vendors what the page ships, so the Worker needs no build and no third party:
 //  - the ascii.rest pieces into src/vendor/ascii.gen.mjs (a string of minified JS the Worker inlines in the page's one
 //    nonce'd script: the CSP allows no other script). ascii.rest is MIT (see ascii.rest.LICENSE); its notice stays at the top.
-//  - the fonts in fonts/ (Geist, Geist Mono, a Righteous subset for the wordmark: SIL OFL, see fonts/OFL-*.txt) and the
+//  - the fonts in fonts/ (Geist, Geist Mono, a basic-Latin Righteous subset for the hero h1 and the wordmark: SIL OFL, see fonts/OFL-*.txt) and the
 //    share image launch/social-preview.png into src/vendor/assets.gen.mjs (base64, served by the Worker at /fonts/* and /og.png).
 // Run `npm run demo:vendor` after changing entry.js, a piece, a font or the share image, and commit the result.
 import { build } from "esbuild";
@@ -29,7 +29,7 @@ const ASSETS = {
   "/fonts/geist.woff2": ["fonts/geist.woff2", "font/woff2"],
   "/fonts/geist-mono.woff2": ["fonts/geist-mono.woff2", "font/woff2"],
   "/fonts/geist-mono-symbols.woff2": ["fonts/geist-mono-symbols.woff2", "font/woff2"],
-  "/fonts/wordmark.woff2": ["fonts/wordmark.woff2", "font/woff2"],
+  "/fonts/righteous.woff2": ["fonts/righteous.woff2", "font/woff2"],
   "/og.png": ["../../launch/social-preview.png", "image/png"],
 };
 const assets = Object.fromEntries(
