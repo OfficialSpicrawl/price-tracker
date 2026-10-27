@@ -121,8 +121,9 @@ test("GET / serves the page: hero, live check, examples, agent section, links, s
   assert.match(res.headers.get("content-type"), /text\/html/);
   for (const needle of [
     "Get alerted when a price drops.",
+    "Track product pages.",
     "Check price",
-    "Selector",
+    "CSS selector",
     "Try Spicrawl free",
     "1,000 credits a month",
     "Star on GitHub",
@@ -141,9 +142,9 @@ test("GET / serves the page: hero, live check, examples, agent section, links, s
     "Discord, Slack or your agent",
     "https://app.spicrawl.com",
     "https://github.com/OfficialSpicrawl/price-tracker",
-    "family=Righteous",
-    "family=Geist:wght",
-    "Geist+Mono",
+    "font-family: \"Righteous\"",
+    "/fonts/geist.woff2",
+    "/fonts/geist-mono.woff2",
     "prefers-reduced-motion",
     "#16181B",
   ]) {
@@ -200,9 +201,10 @@ test("the ASCII pieces are vendored with their MIT notice, inline in the page's 
   assert.match(ASCII_JS, /MIT License[\s\S]*bas3line/);
   const html = await (await worker.fetch(new Request("https://price-tracker.spicrawl.com/"), makeEnv(), ctx)).text();
   assert.ok(html.includes(ASCII_JS.slice(0, 200).replace(/&/g, "&")) || html.includes("ascii.rest 0.4.0"), "the vendored script is in the page");
-  assert.match(html, /<pre id="term" aria-hidden="true">╭─ price-tracker ─+╮/, "the terminal's first frame is in the HTML");
+  assert.match(html, /<legend>price-tracker<\/legend>/);
+  assert.match(html, /<pre id="term" aria-hidden="true">NAME  PRICE   CHANGE           STOCK/, "the terminal's first frame is in the HTML");
   assert.match(html, /<pre id="spark" aria-hidden="true">[^<]*£44\.99/, "the chart's first frame is the price after the drop");
-  assert.match(html, /ALERT Widget: £44\.99 is at or below your target £45\.00/);
+  assert.match(html, /ALERT Mug: £44\.99 is at or below your target £45\.00/);
   assert.equal(html.match(/<script nonce=/g).length, 1, "one nonce'd script, no external script tag for the pieces");
   assert.ok(!/<script[^>]+src=[^>]*ascii/.test(html));
   assert.deepEqual([priceAt(0, 8), priceAt(8.2, 8), priceAt(9, 8), priceAt(12, 8)], [59, 56, 48.1, 44.99]);
@@ -222,13 +224,24 @@ test("unknown paths get a designed 404 (one H1, a way back, noindex, a CSP, no s
   assert.equal(await post.text(), "Not found");
 });
 
-test("/og.png redirects to the share image in the repo, and the page points og:image and twitter:image at it", async () => {
-  const res = await worker.fetch(new Request("https://price-tracker.spicrawl.com/og.png"), makeEnv(), ctx);
-  assert.equal(res.status, 302);
-  assert.equal(res.headers.get("location"), "https://raw.githubusercontent.com/OfficialSpicrawl/price-tracker/main/launch/social-preview.png");
+test("/og.png and the self-hosted fonts are served from the Worker (no third party), immutable fonts, GET only", async () => {
+  const og = await worker.fetch(new Request("https://price-tracker.spicrawl.com/og.png"), makeEnv(), ctx);
+  assert.equal(og.status, 200);
+  assert.equal(og.headers.get("content-type"), "image/png");
+  assert.deepEqual(Buffer.from(await og.arrayBuffer()), readFileSync(new URL("../../launch/social-preview.png", import.meta.url)), "the share image is launch/social-preview.png");
+  for (const path of ["/fonts/geist.woff2", "/fonts/geist-mono.woff2", "/fonts/geist-mono-symbols.woff2", "/fonts/wordmark.woff2"]) {
+    const res = await worker.fetch(new Request(`https://price-tracker.spicrawl.com${path}`), makeEnv(), ctx);
+    assert.equal(res.status, 200, path);
+    assert.equal(res.headers.get("content-type"), "font/woff2");
+    assert.match(res.headers.get("cache-control"), /immutable/);
+    const buf = Buffer.from(await res.arrayBuffer());
+    assert.equal(buf.subarray(0, 4).toString(), "wOF2", `${path} is woff2`);
+    assert.equal((await worker.fetch(new Request(`https://x.test${path}`, { method: "POST" }), makeEnv(), ctx)).status, 405);
+  }
   const html = await (await worker.fetch(new Request("https://price-tracker.spicrawl.com/"), makeEnv(), ctx)).text();
   assert.ok(html.includes('property="og:image" content="https://price-tracker.spicrawl.com/og.png"'));
   assert.ok(html.includes('name="twitter:image" content="https://price-tracker.spicrawl.com/og.png"'));
+  assert.ok(!/fonts\.(googleapis|gstatic)\.com/.test(html), "no Google Fonts");
 });
 
 test("/llms.txt, /robots.txt and /sitemap.xml are served as text, GET only, no engine names", async () => {
@@ -256,8 +269,8 @@ test("security headers: a per-request-nonce CSP on the page, nosniff on every re
   for (const part of [
     "default-src 'none'",
     "https://static.cloudflareinsights.com",
-    "style-src 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src https://fonts.gstatic.com",
+    "style-src 'unsafe-inline'",
+    "font-src 'self'",
     "connect-src 'self' https://cloudflareinsights.com",
     "base-uri 'none'",
     "form-action 'none'",

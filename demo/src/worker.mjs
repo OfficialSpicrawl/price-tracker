@@ -4,6 +4,7 @@ import { Spicrawl, isSpicrawlError, AuthenticationError, PermissionDeniedError, 
 import { request as buildRequest, read as readProduct } from "../../track.mjs";
 import { page, notFound } from "./page.mjs";
 import { LLMS } from "./llms.mjs";
+import { ASSETS } from "./vendor/assets.gen.mjs";
 import { openpanelCsp, openpanelTag } from "./openpanel.mjs";
 import { randomUUID } from "node:crypto"; // explicit: the global `crypto` is missing on Node 18, which CI still tests
 
@@ -19,7 +20,6 @@ const SITEVERIFY = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 const REPO_API = "https://api.github.com/repos/OfficialSpicrawl/price-tracker";
 const STARS_TTL = 600; // seconds the star count is cached at the edge (60 after a failed read)
 const SITE = "https://price-tracker.spicrawl.com";
-const OG_SOURCE = "https://raw.githubusercontent.com/OfficialSpicrawl/price-tracker/main/launch/social-preview.png";
 
 const COMMANDS = [
   "git clone https://github.com/OfficialSpicrawl/price-tracker",
@@ -44,8 +44,8 @@ const csp = (nonce, turnstile, op = { script: "", connect: "" }) =>
   [
     "default-src 'none'",
     `script-src 'nonce-${nonce}' https://static.cloudflareinsights.com${turnstile ? " https://challenges.cloudflare.com" : ""}${op.script}`,
-    "style-src 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src https://fonts.gstatic.com",
+    "style-src 'unsafe-inline'",
+    "font-src 'self'",
     "img-src data:",
     `connect-src 'self' https://cloudflareinsights.com${op.connect}`,
     ...(turnstile ? ["frame-src https://challenges.cloudflare.com"] : []),
@@ -53,6 +53,11 @@ const csp = (nonce, turnstile, op = { script: "", connect: "" }) =>
     "form-action 'none'",
     "frame-ancestors 'none'",
   ].join("; ");
+const decoded = new Map(); // route -> bytes, decoded once per isolate
+const bytes = (route) => {
+  if (!decoded.has(route)) decoded.set(route, Uint8Array.from(atob(ASSETS[route].b64), (c) => c.charCodeAt(0)));
+  return decoded.get(route);
+};
 const json = (body, status = 200, headers = {}) =>
   Response.json(body, { status, headers: { ...SECURITY, "cache-control": "no-store", ...headers } });
 
@@ -293,7 +298,13 @@ export default {
       "/robots.txt": [`User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: ${SITE}/sitemap.xml\n`, "text/plain; charset=utf-8"],
       "/sitemap.xml": [`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${SITE}/</loc></url></urlset>\n`, "application/xml; charset=utf-8"],
     }[pathname];
-    if (pathname === "/og.png") return Response.redirect(OG_SOURCE, 302); // the share image lives in the repo (launch/social-preview.png)
+    const asset = ASSETS[pathname]; // the fonts and the share image (launch/social-preview.png), embedded by vendor/build.mjs
+    if (asset) {
+      if (req.method !== "GET" && req.method !== "HEAD") return new Response("Method not allowed", { status: 405, headers: { ...SECURITY, allow: "GET, HEAD" } });
+      return new Response(req.method === "HEAD" ? null : bytes(pathname), {
+        headers: { ...SECURITY, "content-type": asset.type, "cache-control": pathname === "/og.png" ? "public, max-age=3600" : "public, max-age=31536000, immutable" },
+      });
+    }
     if (text) {
       if (req.method !== "GET" && req.method !== "HEAD") return new Response("Method not allowed", { status: 405, headers: { ...SECURITY, allow: "GET, HEAD" } });
       return new Response(text[0], { headers: { ...SECURITY, "content-type": text[1], "cache-control": "public, max-age=3600" } });
@@ -308,7 +319,7 @@ export default {
       headers: {
         ...SECURITY,
         "content-type": "text/html; charset=utf-8",
-        "content-security-policy": "default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+        "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
       },
     });
   },

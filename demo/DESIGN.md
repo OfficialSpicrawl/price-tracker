@@ -25,7 +25,7 @@ Why the page looks the way it does, so later edits stay consistent. The code is 
 
 ## Pieces from ascii.rest (MIT)
 
-Two of its 217 pieces, vendored (see `vendor/`): `sparkline` and `terminal`. Both are copies with small, marked changes: the terminal plays price-tracker's own session (real table and `ALERT` format, example prices) and reports its playhead through a `sync` option, so the sparkline reads the price at that moment; the sparkline has an `ago` option for its axis label and one more row of air. `mount()` from the same package plays them, pauses them off screen and in a hidden tab, and shows one still frame under reduced motion. Both frames ship as text in the HTML, so a crawler, a no-script visitor and a reduced-motion visitor see the finished alert. Credit: footer link, the notice at the top of the vendored script, and `vendor/ascii.rest.LICENSE`. Not used: split-flap, scramble, candlesticks (the two above already carry the price ticking down; a third effect would only compete).
+Two of its 217 pieces, vendored (see `vendor/`): `sparkline` and `terminal`. Both are copies with small, marked changes: the terminal plays price-tracker's own session (real table with its STOCK column and `ALERT` format, example prices), has no drawn frame (the page boxes both pieces in one CSS `fieldset`, so the border never renders dotted), starts each loop with the first run already on screen, and reports its playhead through a `sync` option, so the sparkline reads the price at that moment (blank before the tracker started); the sparkline has an `ago` option for its axis label and one more row of air. `mount()` from the same package plays them, pauses them off screen and in a hidden tab, and shows one still frame under reduced motion. Both frames ship as text in the HTML, so a crawler, a no-script visitor and a reduced-motion visitor see the finished alert. Credit: footer link, the notice at the top of the vendored script, and `vendor/ascii.rest.LICENSE`. Not used: split-flap, scramble, candlesticks (the two above already carry the price ticking down; a third effect would only compete).
 
 ## Agent-native layer
 
@@ -48,7 +48,7 @@ Two of its 217 pieces, vendored (see `vendor/`): `sparkline` and `terminal`. Bot
 
 ## Type
 
-- Geist (400, 500, 600) for the headline and UI, Geist Mono (400, 500, 600) for the command, labels, prices and the ASCII pieces, both OFL (vercel/geist-font) from Google Fonts, which the CSP allows. Geist Mono carries the box-drawing and block glyphs the pieces use, so frames align. Righteous only for the wordmark (a second request that asks for its eight letters).
+- Geist (400, 500, 600) for the headline and UI, Geist Mono (400, 500, 600) for the command, labels, prices and the ASCII pieces, both OFL (vercel/geist-font), self-hosted as woff2 subsets (latin, plus the symbols subset of Geist Mono for the block glyphs of the chart): about 64 KB for all four fonts, served by the Worker with `font-src 'self'`, so there is no third-party request. Righteous only for the wordmark, subset to its eight letters.
 - Headline 600, `clamp(40px, 7vw, 72px)`, 1.05 leading, -0.03em tracking. Body 16 px at 1.5. Small mono 13 px. The ASCII pieces size from their box (`cqw`), 18 px at most, so 60 columns fill the 640 px column and still fit at 360 px.
 
 ## Grid and rhythm
@@ -89,7 +89,7 @@ A generic model would land on: a hero with a gradient blob, three feature cards,
 ## Content rules
 
 - 120 words or fewer of visible copy; labels are one to three words; caveats live in tooltips and error states (the selector's tooltip, the blocked and out-of-credit messages).
-- No invented stores, stats or testimonials. The ASCII example uses a made-up "Widget" at example prices, labelled "Example data".
+- No invented stores, stats or testimonials. The ASCII example uses a made-up "Mug" at example prices, labelled "Example data".
 - No internal engine names anywhere on the page, in `/llms.txt`, or in the `/api/price` response.
 - No star count while the repo has no stars. The count is read server side (GitHub API, edge cached for 10 minutes) and printed into the HTML, so nothing shifts and the browser never calls GitHub.
-- Share image: `/og.png` redirects to `../launch/social-preview.png` in this repo.
+- Share image: `/og.png` is `../launch/social-preview.png`, embedded at vendor time and served by the Worker.
