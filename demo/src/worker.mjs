@@ -3,6 +3,8 @@
 import { Spicrawl, isSpicrawlError, AuthenticationError, PermissionDeniedError, InsufficientCreditsError } from "@spicrawl/sdk";
 import { request as buildRequest, read as readProduct } from "../../track.mjs";
 import { page } from "./page.mjs";
+import { openpanelCsp, openpanelTag } from "./openpanel.mjs";
+import { randomUUID } from "node:crypto"; // explicit: the global `crypto` is missing on Node 18, which CI still tests
 
 const API = "https://api.spicrawl.com";
 const MIN_CREDITS = 100; // refuse new checks below this many credits left on the demo key
@@ -33,14 +35,14 @@ const SECURITY = {
   "referrer-policy": "strict-origin-when-cross-origin",
 };
 // A fresh nonce per page load; the only inline script is the page's own. Turnstile's host is allowed only when it is on.
-const csp = (nonce, turnstile) =>
+const csp = (nonce, turnstile, op = { script: "", connect: "" }) =>
   [
     "default-src 'none'",
-    `script-src 'nonce-${nonce}' https://static.cloudflareinsights.com${turnstile ? " https://challenges.cloudflare.com" : ""}`,
+    `script-src 'nonce-${nonce}' https://static.cloudflareinsights.com${turnstile ? " https://challenges.cloudflare.com" : ""}${op.script}`,
     "style-src 'unsafe-inline' https://fonts.googleapis.com",
     "font-src https://fonts.gstatic.com",
     "img-src data:",
-    "connect-src 'self' https://cloudflareinsights.com",
+    `connect-src 'self' https://cloudflareinsights.com${op.connect}`,
     ...(turnstile ? ["frame-src https://challenges.cloudflare.com"] : []),
     "base-uri 'none'",
     "form-action 'none'",
@@ -245,14 +247,14 @@ export default {
     const { pathname } = new URL(req.url);
     if (pathname === "/") {
       if (req.method !== "GET" && req.method !== "HEAD") return new Response("Method not allowed", { status: 405, headers: { ...SECURITY, allow: "GET, HEAD" } });
-      const nonce = btoa(crypto.randomUUID());
+      const nonce = btoa(randomUUID());
       const turnstileSiteKey = env.TURNSTILE_SECRET ? env.TURNSTILE_SITE_KEY || "" : "";
-      return new Response(page({ beaconToken: env.BEACON_TOKEN, nonce, turnstileSiteKey }), {
+      return new Response(page({ beaconToken: env.BEACON_TOKEN, nonce, turnstileSiteKey, analytics: openpanelTag(env, nonce, "price-tracker") }), {
         headers: {
           ...SECURITY,
           "content-type": "text/html; charset=utf-8",
           "cache-control": "no-cache", // the nonce is per request, so no shared copy
-          "content-security-policy": csp(nonce, Boolean(turnstileSiteKey)),
+          "content-security-policy": csp(nonce, Boolean(turnstileSiteKey), openpanelCsp(env)),
         },
       });
     }

@@ -13,6 +13,7 @@
   "ratelimits": [{ "name": "LIMITER", "namespace_id": "2026102302", "simple": { "limit": 5, "period": 60 } }],
   "analytics_engine_datasets": [{ "binding": "EVENTS", "dataset": "spicrawl_demo_events" }],
   // Cloudflare Web Analytics token; leave empty for no analytics script.
-  "vars": { "BEACON_TOKEN": "" }
+  "vars": {}
+  // Secrets (not in code): `npx wrangler secret put <NAME>` for BEACON_TOKEN, OPENPANEL_CLIENT_ID and OPENPANEL_API_URL.
   // Secrets: SPICRAWL_API_KEY, and optionally TURNSTILE_SITE_KEY + TURNSTILE_SECRET (see demo/README.md).
 }

@@ -196,7 +196,8 @@ const PRODUCTS_JSON = `[
 
 // beaconToken: Cloudflare Web Analytics token; empty means no analytics script.
 // nonce: the per-request CSP nonce for the inline script. turnstileSiteKey: set to show the Turnstile widget.
-export function page({ beaconToken = "", nonce = "", turnstileSiteKey = "" } = {}) {
+// analytics: the OpenPanel tag (openpanel.mjs), already built with the nonce; empty means none.
+export function page({ beaconToken = "", nonce = "", turnstileSiteKey = "", analytics = "" } = {}) {
   const beacon = /^[\w-]+$/.test(beaconToken)
     ? `<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "${beaconToken}"}'></script>`
     : "";
@@ -223,6 +224,7 @@ export function page({ beaconToken = "", nonce = "", turnstileSiteKey = "" } = {
 <link rel="stylesheet" href="${FONTS}">
 <style>${CSS}</style>
 ${beacon}
+${analytics}
 ${turnstile}
 </head>
 <body>
