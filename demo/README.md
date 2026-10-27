@@ -1,12 +1,14 @@
 # Live demo (Cloudflare Worker)
 
-A one-page demo of the price tracker, served at <https://price-tracker.spicrawl.com>. A visitor pastes a product URL (optionally a CSS selector for the price) and the Worker checks it with Spicrawl: the CLI's own request (`request` from `../track.mjs`, autoparse or selector extract, `cache: false`) in its capped form, `request(p, { cheap: true })`: `max_cost: 1`, which caps every check at 1 credit (Spicrawl picks the engine itself and ignores an `engine` field). The CLI keeps `mode: "auto"`, which may escalate to 3 or 8 credits a page; the public demo must not, so pages that need JavaScript or pass a bot challenge come back as "Blocked/unavailable". The answer is parsed with the CLI's own `findProduct` / `parsePrice`.
+The site for the price tracker, served at <https://price-tracker.spicrawl.com>: a short landing page (a hero with the install command, an ASCII example of a price drop and its alert, and a live check) around a working demo. In the live check a visitor pastes a product URL (optionally a CSS selector for the price) and the Worker checks it with Spicrawl: the CLI's own request (`request` from `../track.mjs`, autoparse or selector extract, `cache: false`) in its capped form, `request(p, { cheap: true })`: `max_cost: 1`, which caps every check at 1 credit (Spicrawl picks the engine itself and ignores an `engine` field). The CLI keeps `mode: "auto"`, which may escalate to 3 or 8 credits a page; the public demo must not, so pages that need JavaScript or pass a bot challenge come back as "Blocked/unavailable". The answer is parsed with the CLI's own `findProduct` / `parsePrice`.
 
 | File | What it is |
 |---|---|
 | `wrangler.jsonc` | Worker config: custom domain only (`workers_dev` and `preview_urls` off), rate limit, Analytics Engine dataset |
-| `src/worker.mjs` | `GET /` serves the page, `POST /api/price` checks one URL |
-| `src/page.mjs` | The page: one HTML string with inline CSS and a small inline script, no build |
+| `src/worker.mjs` | `GET /` serves the page, `POST /api/price` checks one URL, plus `/llms.txt`, `/robots.txt`, `/sitemap.xml` and `/og.png` |
+| `src/page.mjs` | The page: one HTML string with inline CSS and a small inline script, no build. Design notes: [`DESIGN.md`](DESIGN.md) |
+| `src/llms.mjs` | The text served at `/llms.txt`: the tool described for an AI agent. Keep it in step with the README and `SKILL.md` |
+| `vendor/` | The two [ascii.rest](https://ascii.rest) pieces the page plays (`pieces/sparkline.js`, `pieces/terminal.js`: copies with marked changes), `entry.js`, and `build.mjs`, which bundles them into `src/vendor/ascii.gen.mjs` (a generated string of JS, committed). MIT: see `vendor/ascii.rest.LICENSE` |
 | `test/worker.test.mjs` | `node:test` with a stubbed env and stubbed `fetch` (no network, no credits) |
 
 ## Run it locally
@@ -40,6 +42,16 @@ The route is a Workers custom domain (`price-tracker.spicrawl.com`); Cloudflare 
 
 `npm run demo:deploy` runs `wrangler deploy --config demo/wrangler.jsonc`. Check the bundle without deploying: `npx wrangler deploy --dry-run --config demo/wrangler.jsonc`.
 
+## The page
+
+H1 and the command block (Agent and CLI tabs), one "Try Spicrawl free" button, then the example: an ASCII price line above a terminal that runs `node track.mjs` twice and prints the `ALERT` lines (both from [ascii.rest](https://ascii.rest), MIT), then the live check (a URL input, the bot that mirrors its state), then the button and "Star on GitHub" again. About 100 words of copy; Geist and Geist Mono (Google Fonts, which the CSP allows). Design notes: [DESIGN.md](DESIGN.md).
+
+- **ASCII pieces.** `vendor/build.mjs` bundles `mount()` and the two pieces into `src/vendor/ascii.gen.mjs`, which the page inlines in its one nonce'd script (the CSP allows no other script). Both pieces' first frames are also in the HTML as text, so a crawler, a visitor without script and a reduced-motion visitor see the finished alert. After changing `vendor/entry.js` or a piece, run `npm run demo:vendor` and commit the result. The two pieces are copies of ascii.rest 0.4.0 with changes listed at the top of each file; `ascii.rest` and `esbuild` are dev dependencies used only for this step. Deploy is unchanged: there is no build step.
+- **Star count.** Read in the Worker from `https://api.github.com/repos/OfficialSpicrawl/price-tracker` and printed into the HTML, so nothing shifts and the browser never calls GitHub (the CSP allows `'self'` only). Cached at the edge for 10 minutes; a failed or malformed read is cached for 1 minute. The "Star on GitHub" buttons show a count only when it is above zero.
+- **`/llms.txt`** describes the tool for agents (install, files, flags, cost, limits). **`/og.png`** redirects to `launch/social-preview.png` in this repo, which is the `og:image` and `twitter:image`. `/robots.txt` and `/sitemap.xml` are served too. Any other path gets a designed 404.
+- **Reduced motion.** Both pieces stay on their shipped frame, the bot holds a pose, nothing loops.
+- **No internal engine names** appear in the page, in `/llms.txt` or in the `/api/price` response.
+
 ## Configuration
 
 | Setting | Where | Meaning |
@@ -67,7 +79,7 @@ Every check, in this order:
 
    For local dev, add both to `demo/.dev.vars`; Cloudflare's always-pass test keys are `1x00000000000000000000AA` (site key) and `1x0000000000000000000000000000000AA` (secret).
 6. Credit guard: `GET https://api.spicrawl.com/v1/usage/summary` with the key, cached for 60 seconds with `caches.default` (at most one summary call per minute per data center). It fails closed: if the summary cannot be read (error, key without the read scope, no `allowance`, a number that is not a number) the check is refused with "The demo can't check its credit balance right now", and a failed read is not cached. From `allowance` it then refuses a check when
-   - fewer than 100 credits are left (`remaining_micro / 1e6`): "The demo has used its credits for this month — run it yourself with a free key", or
+   - fewer than 100 credits are left (`remaining_micro / 1e6`): "The demo has used its credits for this month. Run it yourself with a free key.", or
    - the demo is ahead of pace: credits used (`limit_micro - remaining_micro`) exceed `limit_micro * (elapsed / window) + 5% of limit_micro`, where `elapsed / window` is how far through the allowance month (`window_start` to `resets_at`) it is now: "Today's share of the demo's credits is used up. Try again tomorrow, or track it yourself with a free key". One busy day cannot drain the month.
 
    `allowance.unlimited` skips both checks. Both refusals are HTTP 503 `no_credits` with the commands to run it yourself; the unreadable-summary refusal is HTTP 503 `error`.
@@ -85,7 +97,7 @@ SDK errors are turned into plain messages (bad key, out of credits, site unreach
 
 | `outcome` | HTTP | Meaning |
 |---|---|---|
-| `found` | 200 | `title`, `price`, `currency`, `inStock` (true, false or null), `credits`, `engine`, `host`, `status` |
+| `found` | 200 | `title`, `price`, `currency`, `inStock` (true, false or null), `credits`, `host`, `status` |
 | `not_found` | 200 | The page answered but no price was found; `message` suggests the selector field |
 | `blocked` | 200 | The site answered HTTP 400 or above, or could not be reached; `message` says "Blocked/unavailable" |
 | `invalid` | 400, 403, 411, 413 | Input refused by a guard (403: Turnstile token missing or rejected; 411/413: Content-Length missing or over 4096) |
@@ -124,4 +136,4 @@ curl "https://api.cloudflare.com/client/v4/accounts/036bd64d65479473f0effc8c4fb1
 npm test
 ```
 
-Runs the CLI tests and `demo/test/worker.test.mjs`. The demo tests stub the Worker env (key, limiter, analytics) and `fetch`, so nothing leaves your machine. They cover the page and its security headers, autoparse and selector checks (including the 1-credit plain-fetch request), not-found, blocked, every input guard (host tricks, credentials, body size), the rate limit and its IPv6 key, Turnstile on and off, the credit guard (fail-closed, pace) and its cache, the `wrangler.jsonc` settings, SDK errors, and that the key never appears in a response.
+Runs the CLI tests and `demo/test/worker.test.mjs`. The demo tests stub the Worker env (key, limiter, analytics) and `fetch`, so nothing leaves your machine. They cover the page (one H1, share tags, no engine names, the vendored pieces and their first frames), its security headers, the star count (none at zero, cached, tolerant of a GitHub failure), the 404, `/llms.txt`, `/robots.txt`, `/sitemap.xml`, `/og.png`, autoparse and selector checks (including the 1-credit plain-fetch request), not-found, blocked, every input guard (host tricks, credentials, body size), the rate limit and its IPv6 key, Turnstile on and off, the credit guard (fail-closed, pace) and its cache, the `wrangler.jsonc` settings, SDK errors, and that the key never appears in a response.

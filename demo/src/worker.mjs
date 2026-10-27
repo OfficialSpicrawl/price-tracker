@@ -2,7 +2,8 @@
 // It builds the CLI's request in its capped form (plain fetch, 1 credit at most) and reads the answer with the CLI's parser (request/read come from ../../track.mjs).
 import { Spicrawl, isSpicrawlError, AuthenticationError, PermissionDeniedError, InsufficientCreditsError } from "@spicrawl/sdk";
 import { request as buildRequest, read as readProduct } from "../../track.mjs";
-import { page } from "./page.mjs";
+import { page, notFound } from "./page.mjs";
+import { LLMS } from "./llms.mjs";
 import { openpanelCsp, openpanelTag } from "./openpanel.mjs";
 import { randomUUID } from "node:crypto"; // explicit: the global `crypto` is missing on Node 18, which CI still tests
 
@@ -15,6 +16,10 @@ const MAX_TOKEN = 2048; // a Turnstile token is far shorter
 const CREDITS_TTL = 60; // seconds the usage summary is cached
 const PACE_SLACK = 0.05; // the demo may run this share of the monthly limit ahead of an even spend
 const SITEVERIFY = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+const REPO_API = "https://api.github.com/repos/OfficialSpicrawl/price-tracker";
+const STARS_TTL = 600; // seconds the star count is cached at the edge (60 after a failed read)
+const SITE = "https://price-tracker.spicrawl.com";
+const OG_SOURCE = "https://raw.githubusercontent.com/OfficialSpicrawl/price-tracker/main/launch/social-preview.png";
 
 const COMMANDS = [
   "git clone https://github.com/OfficialSpicrawl/price-tracker",
@@ -22,7 +27,7 @@ const COMMANDS = [
   "export SPICRAWL_API_KEY=spicrawl_live_...   # free key: https://app.spicrawl.com",
   "node track.mjs",
 ];
-const NO_CREDITS = "The demo has used its credits for this month — run it yourself with a free key.";
+const NO_CREDITS = "The demo has used its credits for this month. Run it yourself with a free key.";
 const PACED = "Today's share of the demo's credits is used up. Try again tomorrow, or track it yourself with a free key.";
 const UNKNOWN_CREDITS = "The demo can't check its credit balance right now. Try again in a minute, or run it yourself with a free key.";
 
@@ -144,6 +149,30 @@ async function humanVerified(env, token, ip) {
   }
 }
 
+// The repo's star count for the page header, or null. Read here, not in the browser: the CSP lets the page talk to
+// itself only, and printing the number into the HTML means nothing shifts when it arrives. Cached at the edge for
+// ten minutes; a failed read is cached for one, so a GitHub outage costs one short wait a minute, not one per visitor.
+async function starCount(ctx) {
+  const cache = globalThis.caches?.default;
+  const key = new Request(`${SITE}/__cache/stars`); // a cache key only, never fetched
+  const hit = await cache?.match(key);
+  if (hit) return (await hit.json()).stars;
+  let stars = null;
+  try {
+    const res = await fetch(REPO_API, {
+      headers: { accept: "application/vnd.github+json", "user-agent": "spicrawl-price-tracker-demo" },
+      signal: AbortSignal.timeout(1500),
+    });
+    const n = res.ok ? (await res.json()).stargazers_count : null;
+    if (Number.isSafeInteger(n) && n >= 0) stars = n;
+  } catch {
+    // no count: the page just shows the button
+  }
+  const put = cache?.put(key, new Response(JSON.stringify({ stars }), { headers: { "cache-control": `max-age=${stars === null ? 60 : STARS_TTL}` } }));
+  if (put) ctx?.waitUntil?.(put.catch(() => {}));
+  return stars;
+}
+
 // ---- /api/price ------------------------------------------------------------------------
 
 function friendly(err) {
@@ -219,7 +248,7 @@ async function checkPrice(req, env, ctx) {
   try {
     const envelope = await client.scrape(buildRequest(product, { cheap: true }));
     credits = envelope.credits ?? envelope._meta?.creditsCharged ?? 0;
-    const facts = { host, credits, engine: envelope.engine ?? envelope._meta?.engine ?? null, status: envelope.status };
+    const facts = { host, credits, status: envelope.status }; // never the engine: its name is internal
     if (envelope.status >= 400) {
       return done("blocked", 200, { ...facts, message: `Blocked/unavailable: the site answered HTTP ${envelope.status}. It may block automated requests, or the page is gone.` });
     }
@@ -249,7 +278,8 @@ export default {
       if (req.method !== "GET" && req.method !== "HEAD") return new Response("Method not allowed", { status: 405, headers: { ...SECURITY, allow: "GET, HEAD" } });
       const nonce = btoa(randomUUID());
       const turnstileSiteKey = env.TURNSTILE_SECRET ? env.TURNSTILE_SITE_KEY || "" : "";
-      return new Response(page({ beaconToken: env.BEACON_TOKEN, nonce, turnstileSiteKey, analytics: openpanelTag(env, nonce, "price-tracker") }), {
+      const stars = await starCount(ctx);
+      return new Response(page({ beaconToken: env.BEACON_TOKEN, nonce, turnstileSiteKey, analytics: openpanelTag(env, nonce, "price-tracker"), stars }), {
         headers: {
           ...SECURITY,
           "content-type": "text/html; charset=utf-8",
@@ -258,10 +288,28 @@ export default {
         },
       });
     }
+    const text = {
+      "/llms.txt": [LLMS, "text/plain; charset=utf-8"],
+      "/robots.txt": [`User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: ${SITE}/sitemap.xml\n`, "text/plain; charset=utf-8"],
+      "/sitemap.xml": [`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${SITE}/</loc></url></urlset>\n`, "application/xml; charset=utf-8"],
+    }[pathname];
+    if (pathname === "/og.png") return Response.redirect(OG_SOURCE, 302); // the share image lives in the repo (launch/social-preview.png)
+    if (text) {
+      if (req.method !== "GET" && req.method !== "HEAD") return new Response("Method not allowed", { status: 405, headers: { ...SECURITY, allow: "GET, HEAD" } });
+      return new Response(text[0], { headers: { ...SECURITY, "content-type": text[1], "cache-control": "public, max-age=3600" } });
+    }
     if (pathname === "/api/price") {
       if (req.method !== "POST") return json({ outcome: "invalid", message: "Use POST." }, 405, { allow: "POST" });
       return checkPrice(req, env, ctx);
     }
-    return new Response("Not found", { status: 404, headers: SECURITY });
+    if (req.method !== "GET" && req.method !== "HEAD") return new Response("Not found", { status: 404, headers: SECURITY });
+    return new Response(notFound(), {
+      status: 404,
+      headers: {
+        ...SECURITY,
+        "content-type": "text/html; charset=utf-8",
+        "content-security-policy": "default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+      },
+    });
   },
 };
