@@ -4,6 +4,7 @@ import { Spicrawl, isSpicrawlError, AuthenticationError, PermissionDeniedError, 
 import { request as buildRequest, read as readProduct } from "../../track.mjs";
 import { page } from "./page.mjs";
 import { openpanelCsp, openpanelTag } from "./openpanel.mjs";
+import { randomUUID } from "node:crypto"; // explicit: the global `crypto` is missing on Node 18, which CI still tests
 
 const API = "https://api.spicrawl.com";
 const MIN_CREDITS = 100; // refuse new checks below this many credits left on the demo key
@@ -246,7 +247,7 @@ export default {
     const { pathname } = new URL(req.url);
     if (pathname === "/") {
       if (req.method !== "GET" && req.method !== "HEAD") return new Response("Method not allowed", { status: 405, headers: { ...SECURITY, allow: "GET, HEAD" } });
-      const nonce = btoa(crypto.randomUUID());
+      const nonce = btoa(randomUUID());
       const turnstileSiteKey = env.TURNSTILE_SECRET ? env.TURNSTILE_SITE_KEY || "" : "";
       return new Response(page({ beaconToken: env.BEACON_TOKEN, nonce, turnstileSiteKey, analytics: openpanelTag(env, nonce, "price-tracker") }), {
         headers: {
