@@ -118,7 +118,7 @@ h1 { font-size: clamp(40px, 7vw, 72px); line-height: 1.05; letter-spacing: -0.03
 .term { margin: 0; min-width: 0; padding: 16px 18px 18px; border: 1px solid var(--ctl); border-radius: var(--r); display: grid; gap: 14px; }
 .term legend { padding: 0 8px; margin-left: -4px; font: 500 13px var(--mono); color: var(--muted); }
 /* 52 columns of 0.6em fill the box; the pieces sit on their own layer so block glyphs render in grayscale (no colour seams) */
-.term pre { font: 500 min(17.2px, calc((100cqw - 38px) / 31.2)) / 1.15 var(--mono); color: #D3D6D9; white-space: pre; text-rendering: geometricPrecision; transform: translateZ(0); }
+.term pre { letter-spacing: 0; font-kerning: none; font: 500 min(17.2px, calc((100cqw - 38px) / 31.2)) / 1.15 var(--mono); color: #D3D6D9; white-space: pre; text-rendering: geometricPrecision; transform: translateZ(0); }
 
 /* live check: one input is the star */
 .try { max-width: var(--col); margin: 0 auto; padding: 88px 0 0; }
@@ -258,20 +258,27 @@ const SCRIPT = `
   // The page ships the full text (and the same text for screen readers); with reduced motion that is what stays.
   var reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   // Types once, as the page loads, and then rests with a blinking caret. A tab switch shows its command at once.
+  var typing = false;
   document.querySelectorAll("[data-type]").forEach(function (code) {
     if (reduced || code.closest(".panel").hidden) return;
     var full = code.dataset.full, i = 0, caret = el("i", "caret");
     function paint() { code.textContent = full.slice(0, i); code.appendChild(caret); }
     function step() {
-      if (i >= full.length) return;
+      if (i >= full.length) { startExample(); return; }
       i++; paint(); setTimeout(step, 22 + Math.random() * 38);
     }
     paint(); setTimeout(step, 600);
+    typing = true;
   });
+  if (!typing) startExample();
 
   // ---- the example: two ascii.rest pieces ------------------------------------------------------
   // The page ships frame 0 of both as text. Here they start playing; with reduced motion they stay as shipped.
-  if (window.ASCII && !reduced) {
+  // One typewriter at a time: the install command types first, then the example plays (when it is on screen).
+  var started = false;
+  function startExample() {
+    if (started || !window.ASCII || reduced) return;
+    started = true;
     // One clock: the terminal reports its playhead, and the chart reads the price at that moment, 500 ms a bar.
     var clock = { now: 0, drop: 0 }, W = 29, vals = [];
     for (var j = 0; j < W; j++) (function (j) {
