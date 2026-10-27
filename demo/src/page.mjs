@@ -13,15 +13,22 @@ const DOCS_URL = "https://docs.spicrawl.com";
 const SDK_URL = "https://github.com/OfficialSpicrawl/sdk";
 const OG_IMAGE = `${SITE}/og.png`; // the Worker redirects it to launch/social-preview.png in the repo
 
-// Geist and Geist Mono (OFL, vercel/geist-font); Righteous only for the Spicrawl wordmark.
-const FONTS = "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap";
-const WORDMARK_FONT = "https://fonts.googleapis.com/css2?family=Righteous&text=Spicrawl&display=swap"; // the wordmark's eight letters only
+// Geist and Geist Mono (OFL, vercel/geist-font), self-hosted as woff2 subsets (served by the Worker, see vendor/build.mjs);
+// Righteous only for the Spicrawl wordmark, subset to its eight letters.
+const LATIN = "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD";
+const FONT_FACES = `
+@font-face { font-family: "Geist"; font-weight: 100 900; font-display: swap; src: url(/fonts/geist.woff2) format("woff2"); unicode-range: ${LATIN}; }
+@font-face { font-family: "Geist Mono"; font-weight: 100 900; font-display: swap; src: url(/fonts/geist-mono.woff2) format("woff2"); unicode-range: ${LATIN}; }
+@font-face { font-family: "Geist Mono"; font-weight: 100 900; font-display: swap; src: url(/fonts/geist-mono-symbols.woff2) format("woff2"); unicode-range: U+2000-2001, U+2004-2008, U+200A, U+23B8-23BD, U+2500-259F; }
+@font-face { font-family: "Righteous"; font-weight: 400; font-display: swap; src: url(/fonts/wordmark.woff2) format("woff2"); unicode-range: U+53, U+61, U+63, U+69, U+6c, U+70, U+72, U+77; }`;
+const FONT_PRELOAD = `<link rel="preload" href="/fonts/geist.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/geist-mono.woff2" as="font" type="font/woff2" crossorigin>`;
 
 const TITLE = "Price tracker by Spicrawl: get alerted when a price drops";
 const DESCRIPTION =
   "Open-source price and stock tracker. Get a Discord or Slack alert on a price drop, a target price or a restock, from a terminal, GitHub Actions or an agent skill.";
 
-const CSS = `
+const CSS = `${FONT_FACES}
 :root {
   --ground: #16181B; --card: #1E2124; --line: #2E3135; --ctl: #6B7076;
   --ink: #F9F9F9; --muted: #A9ADB2; --dim: #8A8E94;
@@ -96,11 +103,9 @@ h1 { font-size: clamp(40px, 7vw, 72px); line-height: 1.05; letter-spacing: -0.03
 .tabs button[aria-selected=true] { color: var(--ink); border-bottom-color: var(--ink); }
 .tabs button[aria-selected=true]:hover { background: rgba(255, 255, 255, 0.05); }
 .tabs button:focus-visible { outline-offset: -4px; }
-.panels { display: grid; }
-.panel { grid-area: 1 / 1; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; align-items: center; padding: 14px 16px; }
-.panel[hidden] { display: grid; visibility: hidden; }
-@media (max-width: 639px) { .panel[hidden] { display: none; } }
-.cmd { font-size: 16px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; min-height: calc(var(--n, 1) * 1.7em); }
+.panel { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; align-items: center; padding: 14px 16px; }
+.panel[hidden] { display: none; }
+.cmd { padding-right: 8px; font-size: 15px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; min-height: calc(var(--n, 1) * 1.7em); }
 .caret { display: inline-block; width: 0.55em; height: 1.05em; margin-left: 2px; vertical-align: -0.2em; background: var(--ink); animation: caret 0.526s steps(1) infinite; } /* 1.9 Hz */
 .cmd .p { color: var(--dim); user-select: none; }
 .cta { display: grid; justify-items: center; gap: 10px; margin-top: 8px; }
@@ -108,11 +113,16 @@ h1 { font-size: clamp(40px, 7vw, 72px); line-height: 1.05; letter-spacing: -0.03
 /* the example: ASCII pieces from ascii.rest. Font size follows the box so the pieces fit down to 360px. */
 .stage { display: grid; justify-items: center; gap: 12px; padding: 56px 0 0; }
 @media (min-width: 720px) { .stage { padding-top: 64px; } }
-.art { width: min(100%, var(--col)); container-type: inline-size; display: grid; justify-items: center; gap: 20px; }
-.art pre { font: 500 min(17.1px, calc(100cqw / 33.7)) / 1.15 var(--mono); color: #D3D6D9; white-space: pre; text-rendering: geometricPrecision; transform: translateZ(0); /* its own layer: grayscale antialiasing, so block glyphs show no colour fringes */ }
+.cap { font: 400 14px/1.4 var(--mono); color: var(--muted); }
+.art { width: min(100%, var(--col)); container-type: inline-size; }
+.term { margin: 0; min-width: 0; padding: 16px 18px 18px; border: 1px solid var(--ctl); border-radius: var(--r); display: grid; gap: 14px; }
+.term legend { padding: 0 8px; margin-left: -4px; font: 500 13px var(--mono); color: var(--muted); }
+/* 52 columns of 0.6em fill the box; the pieces sit on their own layer so block glyphs render in grayscale (no colour seams) */
+.term pre { font: 500 min(17.2px, calc((100cqw - 38px) / 31.2)) / 1.15 var(--mono); color: #D3D6D9; white-space: pre; text-rendering: geometricPrecision; transform: translateZ(0); }
 
 /* live check: one input is the star */
-.try { max-width: var(--col); margin: 0 auto; padding: 112px 0 0; }
+.try { max-width: var(--col); margin: 0 auto; padding: 88px 0 0; }
+h2 { margin: 0; font: 600 20px/1.3 var(--ui); letter-spacing: -0.01em; }
 .check { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
 .state { display: flex; align-items: center; gap: 10px; font: 500 13px var(--mono); color: var(--muted); min-height: 36px; }
 .bot { width: 34px; height: 34px; flex: none; overflow: visible; }
@@ -129,9 +139,6 @@ h1 { font-size: clamp(40px, 7vw, 72px); line-height: 1.05; letter-spacing: -0.03
 .check[data-s=asleep] .bot .eye { animation: none; scale: 1 0.12; }
 .check[data-s=asleep] .bot .eyes { animation: none; }
 .check[data-s=asleep] .bot .led { fill: var(--dim); }
-.orb { width: 16px; height: 16px; flex: none; display: none; }
-.orb circle { fill: var(--ink); }
-.check[data-s=working] .orb { display: block; animation: spin 1.2s steps(12) infinite; }
 .row { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 640px) { .row { grid-template-columns: minmax(0, 1fr) auto; } }
 input[type=url], input[type=text] { width: 100%; min-height: 52px; padding: 10px 16px; font: 400 16px var(--ui); color: var(--ink); background: var(--card); border: 1px solid var(--ctl); border-radius: var(--r); }
@@ -140,9 +147,11 @@ input:focus-visible { border-color: var(--ink); outline-offset: 0; }
 .row .btn { min-height: 52px; }
 .opts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .chipb { min-height: 44px; padding: 0 12px; border-radius: var(--r); background: transparent; color: var(--ink); border: 1px solid var(--ctl); font: 400 13px var(--mono); cursor: pointer; transition: border-color 0.2s; }
-.chipb:hover { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+@media (hover: hover) { .chipb:hover { background: var(--ink); color: var(--ground); border-color: var(--ink); } }
 .tbtn { min-height: 44px; padding: 0 4px; margin-left: auto; background: none; border: 0; color: var(--muted); font: 500 13px var(--mono); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 .tbtn:hover { color: var(--ink); }
+.tbtn .lab { padding-block: 0.2em; }
+.tbtn .lab > span { text-decoration: underline; text-underline-offset: 3px; }
 .sel[hidden] { display: none; }
 .cf-turnstile { margin: 0; }
 #out:empty { display: none; }
@@ -152,24 +161,25 @@ input:focus-visible { border-color: var(--ink); outline-offset: 0; }
 .meta { font: 400 13px var(--mono); color: var(--muted); }
 .note { color: var(--muted); }
 .track { position: relative; margin-top: 12px; }
-.track pre { min-width: 0; padding: 16px; padding-right: 88px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); font-size: 12.5px; line-height: 1.6; overflow-x: auto; color: #D3D6D9; }
+.track pre { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; padding: 16px; padding-right: 88px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); font-size: 12.5px; line-height: 1.6; overflow-x: auto; color: #D3D6D9; }
 .track .btn { position: absolute; top: 8px; right: 8px; }
 .cmdlist { padding: 14px 16px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); font-size: 12.5px; line-height: 1.6; overflow-x: auto; color: #D3D6D9; }
 
 /* close */
-.close { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px 16px; padding: 88px 0 0; }
+.close { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 16px; padding: 88px 0 0; text-align: center; }
+.close h2 { flex: 0 0 100%; font-size: clamp(24px, 4vw, 32px); }
 footer { margin-top: 96px; border-top: 1px solid var(--line); padding: 20px 0 40px; font: 400 13px var(--mono); color: var(--muted); }
 footer .wrap { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 24px; }
 footer a { display: inline-flex; min-height: 32px; align-items: center; }
 footer a:hover { color: var(--ink); }
 
 @keyframes caret { 50% { opacity: 0; } }
+@media (max-width: 639px) { .btn.sm, .gh { min-height: 44px; } footer a { min-height: 44px; } }
 @keyframes blink { 0%, 90%, 100% { scale: 1 1; } 94% { scale: 1 0.1; } }
 @keyframes glance { 0%, 28% { translate: 0 0; } 34%, 52% { translate: -2.5px 0; } 58%, 78% { translate: 2.5px 0; } 84%, 100% { translate: 0 0; } }
 @keyframes scan { from { translate: -3px 0; } to { translate: 3px 0; } }
 @keyframes hop { from { translate: 0 0; } to { translate: 0 -2px; } }
 @keyframes led { 50% { opacity: 0.2; } }
-@keyframes spin { to { rotate: 360deg; } }
 .off, .off * { animation-play-state: paused !important; } /* off screen: nothing animates */
 
 @media (prefers-reduced-motion: reduce) {
@@ -232,8 +242,6 @@ const SCRIPT = `
       x.tabIndex = on ? 0 : -1;
       $(x.getAttribute("aria-controls")).hidden = !on;
     });
-    var c = $(t.getAttribute("aria-controls")).querySelector("[data-type]");
-    if (c && c.restart) c.restart();
   }
   tabs.forEach(function (t, i) {
     t.addEventListener("click", function () { pick(t); });
@@ -249,27 +257,23 @@ const SCRIPT = `
   // ---- the command block types itself, like a terminal -----------------------------------------
   // The page ships the full text (and the same text for screen readers); with reduced motion that is what stays.
   var reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var installBox = document.querySelector(".install"), installSeen = true;
-  if (installBox && "IntersectionObserver" in window) new IntersectionObserver(function (es) { installSeen = es[es.length - 1].isIntersecting; }).observe(installBox);
+  // Types once, as the page loads, and then rests with a blinking caret. A tab switch shows its command at once.
   document.querySelectorAll("[data-type]").forEach(function (code) {
-    if (reduced) return;
-    var full = code.dataset.full, i = 0, caret = el("i", "caret"), timer = 0;
+    if (reduced || code.closest(".panel").hidden) return;
+    var full = code.dataset.full, i = 0, caret = el("i", "caret");
     function paint() { code.textContent = full.slice(0, i); code.appendChild(caret); }
-    function live() { return !code.closest(".panel").hidden && installSeen && !document.hidden; }
     function step() {
-      if (!live()) { timer = setTimeout(step, 300); return; }
-      if (i < full.length) { i++; paint(); timer = setTimeout(step, full.charAt(i - 1) === "\\n" ? 380 : 22 + Math.random() * 38); }
-      else timer = setTimeout(function () { i = 0; paint(); timer = setTimeout(step, 700); }, 7000); // hold the finished command, then start over
+      if (i >= full.length) return;
+      i++; paint(); setTimeout(step, 22 + Math.random() * 38);
     }
-    code.restart = function () { clearTimeout(timer); i = 0; paint(); timer = setTimeout(step, 500); };
-    code.restart();
+    paint(); setTimeout(step, 600);
   });
 
   // ---- the example: two ascii.rest pieces ------------------------------------------------------
   // The page ships frame 0 of both as text. Here they start playing; with reduced motion they stay as shipped.
   if (window.ASCII && !reduced) {
     // One clock: the terminal reports its playhead, and the chart reads the price at that moment, 500 ms a bar.
-    var clock = { now: 0, drop: 0 }, W = 33, vals = [];
+    var clock = { now: 0, drop: 0 }, W = 29, vals = [];
     for (var j = 0; j < W; j++) (function (j) {
       Object.defineProperty(vals, j, { enumerable: true, get: function () { return ASCII.priceAt(clock.now - (W - 1 - j) * 0.5, clock.drop); } });
     })(j);
@@ -388,7 +392,7 @@ export function compact(n) {
 // The sparkline's frame 0 shows the price after the drop.
 const clock = { now: 0, drop: 0 };
 const TERM_FRAME = terminalPiece.default({ sync: (now, drop) => Object.assign(clock, { now, drop }) })(0);
-const SPARK_STILL = Array.from({ length: 33 }, (_, i) => priceAt(clock.now - (32 - i) * 0.5, clock.drop));
+const SPARK_STILL = Array.from({ length: 29 }, (_, i) => priceAt(clock.now - (28 - i) * 0.5, clock.drop));
 const SPARK_FRAME = sparklinePiece.default({
   series: [{ label: "price", values: SPARK_STILL, lo: 40, hi: 60, format: (v) => `£${v.toFixed(2)}` }],
   range: false,
@@ -417,14 +421,6 @@ const BOT = `<svg class="bot" viewBox="0 0 40 40" aria-hidden="true">
           </g>
         </svg>`;
 
-const ORB = (() => {
-  const dots = Array.from({ length: 12 }, (_, i) => {
-    const a = (i / 12) * Math.PI * 2;
-    return `<circle cx="${(12 + 8 * Math.sin(a)).toFixed(2)}" cy="${(12 - 8 * Math.cos(a)).toFixed(2)}" r="${(1.9 - i * 0.1).toFixed(2)}" opacity="${(1 - i * 0.075).toFixed(2)}"/>`;
-  }).join("");
-  return `<svg class="orb" viewBox="0 0 24 24" aria-hidden="true">${dots}</svg>`;
-})();
-
 // The 404: the same look, the bot asleep, a way back. No script.
 export function notFound() {
   return `<!doctype html>
@@ -435,16 +431,13 @@ export function notFound() {
 <title>Not found · Price tracker by Spicrawl</title>
 <meta name="robots" content="noindex">
 <meta name="color-scheme" content="dark">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="${FONTS}">
-<link rel="stylesheet" href="${WORDMARK_FONT}">
+${FONT_PRELOAD}
 <style>${CSS}</style>
 </head>
 <body>
 <header><div class="wrap bar"><a class="brand" href="/"><span class="mark">Spicrawl</span><span class="sep" aria-hidden="true">·</span><span class="name">Price tracker</span></a></div></header>
 <main class="wrap">
-  <section class="hero check" data-s="asleep">
+  <section class="hero check" data-s="asleep" style="min-height:70svh;align-content:center">
     ${BOT.replace("<svg ", '<svg style="width:56px;height:56px" ')}
     <h1>Nothing here.</h1>
     <p class="sub">That page does not exist.</p>
@@ -510,10 +503,7 @@ export function page({ beaconToken = "", nonce = "", turnstileSiteKey = "", anal
 <meta name="twitter:description" content="${esc(DESCRIPTION)}">
 <meta name="twitter:image" content="${OG_IMAGE}">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2316181B'/%3E%3Ccircle cx='16' cy='16' r='7' fill='%23F9F9F9'/%3E%3C/svg%3E">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="${FONTS}">
-<link rel="stylesheet" href="${WORDMARK_FONT}">
+${FONT_PRELOAD}
 <style>${CSS}</style>
 <script type="application/ld+json">${ld}</script>
 ${beacon}
@@ -531,14 +521,14 @@ ${turnstile}
 <main id="main" class="wrap">
   <section class="hero" aria-labelledby="top-h">
     <h1 id="top-h">Get alerted when a price drops.</h1>
-    <p class="sub">Track any product page. Alerts in Discord, Slack or your agent.</p>
+    <p class="sub">Track product pages. Alerts in Discord, Slack or your agent.</p>
 
     <div class="install">
       <div class="tabs" role="tablist" aria-label="Install with">
-        <button type="button" role="tab" id="t-agent" aria-selected="true" aria-controls="p-agent">Agent</button>
-        <button type="button" role="tab" id="t-cli" aria-selected="false" tabindex="-1" aria-controls="p-cli">CLI</button>
+        <button type="button" role="tab" class="roll" id="t-agent" aria-selected="true" aria-controls="p-agent">${roll("Agent")}</button>
+        <button type="button" role="tab" class="roll" id="t-cli" aria-selected="false" tabindex="-1" aria-controls="p-cli">${roll("CLI")}</button>
       </div>
-      <div class="panels">
+      <div>
         <div class="panel" role="tabpanel" id="p-agent" aria-labelledby="t-agent">
           <pre class="cmd"><span class="p" aria-hidden="true">$ </span><code data-type data-full="npx skills add OfficialSpicrawl/price-tracker" aria-hidden="true">npx skills add OfficialSpicrawl/price-tracker</code><span class="sr">npx skills add OfficialSpicrawl/price-tracker</span></pre>
           <button type="button" class="btn sm roll" data-copy="npx skills add OfficialSpicrawl/price-tracker">${roll("Copy")}</button>
@@ -557,23 +547,27 @@ ${turnstile}
   </section>
 
   <section class="stage" aria-label="Example">
-    <div class="art" role="img" aria-label="${esc(ART_LABEL)}">
-      <pre id="spark" aria-hidden="true">${esc(SPARK_FRAME)}</pre>
-      <pre id="term" aria-hidden="true">${esc(TERM_FRAME)}</pre>
+    <div class="art">
+      <fieldset class="term" role="img" aria-label="${esc(ART_LABEL)}">
+        <legend>price-tracker</legend>
+        <pre id="spark" aria-hidden="true">${esc(SPARK_FRAME)}</pre>
+        <pre id="term" aria-hidden="true">${esc(TERM_FRAME)}</pre>
+      </fieldset>
     </div>
-    <p class="tiny">Example data</p>
+    <p class="cap">Example data</p>
   </section>
 
-  <section class="try" aria-label="Check a page">
+  <section class="try" aria-labelledby="try-h">
     <form id="f" class="check" data-s="idle">
-      <div class="state" aria-hidden="true">${BOT}${ORB}<span id="state">Watching</span></div>
+      <h2 id="try-h">Try it on a real page</h2>
+      <div class="state" aria-hidden="true">${BOT}<span id="state">Watching</span></div>
       <div class="row">
         <input id="url" name="url" type="url" required maxlength="2048" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://shop.example/product" aria-label="Product URL">
         <button id="go" class="btn solid roll" type="submit">${roll("Check price")}</button>
       </div>
       <div class="opts">
         ${examples}
-        <button type="button" class="tbtn" id="selbtn" aria-expanded="false" aria-controls="selwrap" title="For pages without structured data, give the CSS selector of the price">CSS selector</button>
+        <button type="button" class="tbtn roll" id="selbtn" aria-expanded="false" aria-controls="selwrap" title="For pages without structured data, give the CSS selector of the price">${roll("CSS selector")}</button>
       </div>
       <div class="sel" id="selwrap" hidden>
         <input id="sel" name="selector" type="text" maxlength="200" autocomplete="off" spellcheck="false" placeholder=".product .price" aria-label="CSS selector for the price">
@@ -583,7 +577,8 @@ ${turnstile}
     </form>
   </section>
 
-  <section class="close" aria-label="Get started">
+  <section class="close" aria-labelledby="close-h">
+    <h2 id="close-h">Start free</h2>
     <a class="btn solid roll" href="${KEY_URL}">${roll("Try Spicrawl free")}${ARROW}</a>
     ${star}
   </section>

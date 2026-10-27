@@ -1,10 +1,10 @@
 // Copied from ascii.rest 0.4.0 (https://ascii.rest/sparkline/), MIT, (c) 2026 bas3line. See ascii.rest.LICENSE.
-// Changes: 56 columns by 4 rows, one series, and an `ago` option for the left end of the time axis (it said "Ns ago").
+// Changes: 52 columns by 4 rows, one series, and an `ago` option for the left end of the time axis (it said "Ns ago").
 export const meta = {
     name: "sparkline",
     category: "data",
     note: "three live block sparklines scrolling left, values at right",
-    cols: 56,
+    cols: 52,
     rows: 4,
     fps: 10,
     // A series with `values` shows the newest of them, read every frame, so
