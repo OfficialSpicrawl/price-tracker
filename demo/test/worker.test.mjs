@@ -1,7 +1,10 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { Script } from "node:vm";
 import worker, { parseTarget, limiterKey } from "../src/worker.mjs";
+import { ASCII_JS } from "../src/vendor/ascii.gen.mjs";
+import { priceAt } from "../vendor/pieces/terminal.js";
 
 const KEY = "spicrawl_live_SECRET_KEY_123";
 const BOOK = "https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html";
@@ -13,6 +16,7 @@ const realConsoleError = console.error;
 let calls; // every request the Worker made to api.spicrawl.com
 let api; // per-test overrides: { summary, scrape, turnstile }
 let cacheStore;
+let githubCalls; // requests the Worker made to api.github.com
 
 const DAY = 86_400_000;
 // A usage summary `elapsed` of the way through a 30-day allowance month, `used` of `limit` credits spent.
@@ -27,10 +31,15 @@ const summary = ({ used = 100, elapsed = 0.5, limit = 1000 } = {}) => ({
   },
 });
 
-// A stand-in for api.spicrawl.com (GET /v1/usage/summary, POST /v1/scrape) and for Turnstile's siteverify.
+// A stand-in for api.spicrawl.com (GET /v1/usage/summary, POST /v1/scrape), for Turnstile's siteverify and for the GitHub repo API.
 function stubFetch() {
   return async (url, init = {}) => {
     const path = new URL(url).pathname;
+    if (new URL(url).hostname === "api.github.com") {
+      githubCalls++;
+      const g = api.github ?? { stargazers_count: 0 };
+      return g instanceof Response ? g : Response.json(g);
+    }
     const form = init.body instanceof URLSearchParams ? Object.fromEntries(init.body) : null;
     calls.push({ url: String(url), path, init, form, body: init.body && !form ? JSON.parse(init.body) : null });
     if (path === "/turnstile/v0/siteverify") return api.turnstile instanceof Response ? api.turnstile : Response.json(api.turnstile ?? { success: true });
@@ -54,6 +63,7 @@ const problem = (status, code, title) =>
 
 beforeEach(() => {
   calls = [];
+  githubCalls = 0;
   api = {};
   cacheStore = new Map();
   globalThis.fetch = stubFetch();
@@ -104,25 +114,36 @@ async function price(body, env = makeEnv(), { raw = false, type = "application/j
 
 const scrapes = () => calls.filter((c) => c.path === "/v1/scrape");
 
-test("GET / serves the page: form, examples, track-it-yourself block, links, no beacon by default", async () => {
+test("GET / serves the page: hero, live check, examples, agent section, links, share tags, no beacon by default", async () => {
   const res = await worker.fetch(new Request("https://price-tracker.spicrawl.com/"), makeEnv(), ctx);
   const html = await res.text();
   assert.equal(res.status, 200);
   assert.match(res.headers.get("content-type"), /text\/html/);
   for (const needle of [
+    "Get alerted when a price drops.",
     "Check price",
-    "Advanced",
+    "Selector",
+    "Try Spicrawl free",
+    "1,000 credits a month",
+    "Star on GitHub",
+    "npx skills add OfficialSpicrawl/price-tracker",
+    "ASCII by ascii.rest",
+    "node track.mjs",
+    'property="og:image"',
+    'name="twitter:card" content="summary_large_image"',
+    'rel="canonical"',
+    "/llms.txt",
     BOOK,
     SHOE,
     "git clone https://github.com/OfficialSpicrawl/price-tracker",
     "npm install",
     "node track.mjs",
-    "DISCORD_WEBHOOK_URL",
-    "products.json",
+    "Discord, Slack or your agent",
     "https://app.spicrawl.com",
     "https://github.com/OfficialSpicrawl/price-tracker",
     "family=Righteous",
-    "JetBrains+Mono",
+    "family=Geist:wght",
+    "Geist+Mono",
     "prefers-reduced-motion",
     "#16181B",
   ]) {
@@ -130,6 +151,96 @@ test("GET / serves the page: form, examples, track-it-yourself block, links, no 
   }
   assert.ok(!html.includes("cloudflareinsights"));
   assert.ok(!html.includes(KEY));
+  assert.equal((html.match(/<h1[\s>]/g) ?? []).length, 1, "one h1");
+  assert.ok(!/engine|moli|chromium|camoufox|obscura|browserless|headful|headless|playwright|puppeteer/i.test(html), "no internal engine names");
+  assert.ok(!/[\u2013\u2014]/.test(html.replace(/<style>[\s\S]*?<\/style>|<script[\s\S]*?<\/script>/g, "")), "no en or em dashes in the page text");
+});
+
+test("the star button shows a count only when the repo has stars, printed into the HTML (no browser call to GitHub)", async () => {
+  const get = async () => (await worker.fetch(new Request("https://price-tracker.spicrawl.com/"), makeEnv(), ctx)).text();
+  assert.ok(!(await get()).includes('class="count"'), "0 stars: no count");
+  cacheStore.clear();
+  api.github = { stargazers_count: 1234 };
+  const html = await get();
+  assert.equal((html.match(/class="count"/g) ?? []).length, 2, "header and close button");
+  assert.ok(html.includes("<span>1.2k</span>"));
+  assert.ok(html.includes("Star on GitHub"));
+  const csp = (await worker.fetch(new Request("https://x.test/"), makeEnv(), ctx)).headers.get("content-security-policy");
+  assert.ok(!csp.includes("api.github.com"), "the browser never talks to GitHub");
+});
+
+test("star count: cached for ten minutes, and a GitHub failure or a bad number shows no count", async () => {
+  api.github = { stargazers_count: 7 };
+  const get = async () => (await worker.fetch(new Request("https://x.test/"), makeEnv(), ctx)).text();
+  await get();
+  await get();
+  assert.equal(githubCalls, 1, "second view comes from the cache");
+  cacheStore.clear();
+  api.github = new Response("rate limited", { status: 403 });
+  assert.ok(!(await get()).includes('class="count"'));
+  await get();
+  assert.equal(githubCalls, 2, "a failed read is cached too");
+  cacheStore.clear();
+  api.github = { stargazers_count: "lots" };
+  assert.ok(!(await get()).includes('class="count"'));
+  cacheStore.clear();
+  globalThis.fetch = async () => { throw new Error("network down"); };
+  const res = await worker.fetch(new Request("https://x.test/"), makeEnv(), ctx);
+  assert.equal(res.status, 200, "the page still renders");
+});
+
+test("the page's inline script parses (a stray escape in the template would only show in a browser)", async () => {
+  const html = await (await worker.fetch(new Request("https://price-tracker.spicrawl.com/"), makeEnv(), ctx)).text();
+  const code = html.match(/<script nonce="[^"]+">([\s\S]*?)<\/script>/)[1];
+  assert.doesNotThrow(() => new Script(code), "inline script has a syntax error");
+});
+
+test("the ASCII pieces are vendored with their MIT notice, inline in the page's one script, and ship as text first", async () => {
+  assert.match(ASCII_JS, /ascii\.rest 0\.4\.0/);
+  assert.match(ASCII_JS, /MIT License[\s\S]*bas3line/);
+  const html = await (await worker.fetch(new Request("https://price-tracker.spicrawl.com/"), makeEnv(), ctx)).text();
+  assert.ok(html.includes(ASCII_JS.slice(0, 200).replace(/&/g, "&")) || html.includes("ascii.rest 0.4.0"), "the vendored script is in the page");
+  assert.match(html, /<pre id="term" aria-hidden="true">╭─ price-tracker ─+╮/, "the terminal's first frame is in the HTML");
+  assert.match(html, /<pre id="spark" aria-hidden="true">[^<]*£44\.99/, "the chart's first frame is the price after the drop");
+  assert.match(html, /ALERT Widget: £44\.99 is at or below your target £45\.00/);
+  assert.equal(html.match(/<script nonce=/g).length, 1, "one nonce'd script, no external script tag for the pieces");
+  assert.ok(!/<script[^>]+src=[^>]*ascii/.test(html));
+  assert.deepEqual([priceAt(0, 8), priceAt(8.2, 8), priceAt(9, 8), priceAt(12, 8)], [59, 56, 48.1, 44.99]);
+});
+
+test("unknown paths get a designed 404 (one H1, a way back, noindex, a CSP, no script); other methods get plain text", async () => {
+  const res = await worker.fetch(new Request("https://price-tracker.spicrawl.com/nope"), makeEnv(), ctx);
+  assert.equal(res.status, 404);
+  assert.match(res.headers.get("content-type"), /text\/html/);
+  const html = await res.text();
+  assert.equal((html.match(/<h1[\s>]/g) ?? []).length, 1);
+  assert.ok(html.includes('href="/"') && html.includes("noindex") && !html.includes("<script"));
+  assert.ok(res.headers.get("content-security-policy").includes("default-src 'none'"));
+  assert.equal(res.headers.get("x-content-type-options"), "nosniff");
+  const post = await worker.fetch(new Request("https://x.test/nope", { method: "POST", body: "{}" }), makeEnv(), ctx);
+  assert.equal(post.status, 404);
+  assert.equal(await post.text(), "Not found");
+});
+
+test("/og.png redirects to the share image in the repo, and the page points og:image and twitter:image at it", async () => {
+  const res = await worker.fetch(new Request("https://price-tracker.spicrawl.com/og.png"), makeEnv(), ctx);
+  assert.equal(res.status, 302);
+  assert.equal(res.headers.get("location"), "https://raw.githubusercontent.com/OfficialSpicrawl/price-tracker/main/launch/social-preview.png");
+  const html = await (await worker.fetch(new Request("https://price-tracker.spicrawl.com/"), makeEnv(), ctx)).text();
+  assert.ok(html.includes('property="og:image" content="https://price-tracker.spicrawl.com/og.png"'));
+  assert.ok(html.includes('name="twitter:image" content="https://price-tracker.spicrawl.com/og.png"'));
+});
+
+test("/llms.txt, /robots.txt and /sitemap.xml are served as text, GET only, no engine names", async () => {
+  for (const [path, type, needle] of [["/llms.txt", /text\/plain/, "npx skills add OfficialSpicrawl/price-tracker"], ["/robots.txt", /text\/plain/, "Sitemap: https://price-tracker.spicrawl.com/sitemap.xml"], ["/sitemap.xml", /xml/, "<loc>https://price-tracker.spicrawl.com/</loc>"]]) {
+    const res = await worker.fetch(new Request(`https://price-tracker.spicrawl.com${path}`), makeEnv(), ctx);
+    assert.equal(res.status, 200, path);
+    assert.match(res.headers.get("content-type"), type);
+    const body = await res.text();
+    assert.ok(body.includes(needle), path);
+    assert.ok(!/obscura|moli|chromium|camoufox|browserless|headful|headless|playwright|puppeteer/i.test(body), path);
+    assert.equal((await worker.fetch(new Request(`https://x.test${path}`, { method: "POST" }), makeEnv(), ctx)).status, 405);
+  }
 });
 
 test("security headers: a per-request-nonce CSP on the page, nosniff on every response", async () => {
@@ -139,7 +250,7 @@ test("security headers: a per-request-nonce CSP on the page, nosniff on every re
   const nonce = (res) => res.headers.get("content-security-policy").match(/script-src 'nonce-([^']+)'/)[1];
   assert.notEqual(nonce(a), nonce(b));
   assert.ok(htmlA.includes(`<script nonce="${nonce(a)}">`), "the inline script carries this response's nonce");
-  assert.equal((htmlA.match(/<script(?![^>]*\bsrc=)[^>]*>/g) ?? []).length, 1, "no other inline script");
+  assert.equal((htmlA.match(/<script(?![^>]*\bsrc=)(?![^>]*application\/ld\+json)[^>]*>/g) ?? []).length, 1, "no other inline script (JSON-LD is data, not script)");
   assert.ok(!/ on\w+=/i.test(htmlA), "no inline event handlers");
   const csp = a.headers.get("content-security-policy");
   for (const part of [
@@ -191,7 +302,6 @@ test("autoparse: reads price, currency, stock and title from the OpenGraph shape
     outcome: "found",
     host: "www.allbirds.com",
     credits: 1,
-    engine: "fetch",
     status: 200,
     title: "Men's Tree Runners",
     price: 100,
@@ -221,7 +331,7 @@ test("selector: sends extract and parses the price text", async () => {
   assert.deepEqual([json.outcome, json.price, json.currency, json.inStock, json.title], ["found", 51.77, "GBP", null, ""]);
 });
 
-test("no price found: says so, suggests the selector, still reports credits and engine", async () => {
+test("no price found: says so, suggests the selector, still reports credits, never the engine", async () => {
   api.scrape = { credits: 3, engine: "obscura", data: { meta: { title: "Home" } } };
   const { res, json, env } = await price({ url: SHOE });
   assert.equal(res.status, 200);
@@ -229,7 +339,8 @@ test("no price found: says so, suggests the selector, still reports credits and 
   assert.equal(json.price, null);
   assert.match(json.message, /No price found/);
   assert.match(json.message, /selector/);
-  assert.deepEqual([json.credits, json.engine], [3, "obscura"]);
+  assert.equal(json.credits, 3);
+  assert.ok(!("engine" in json), "the engine name is internal and is not returned");
   assert.equal(env.points[0].blobs[1], "not_found");
   assert.equal(env.points[0].doubles[0], 3);
 });
@@ -371,7 +482,7 @@ test("credit guard: refuses below 100 credits with the run-it-yourself commands,
   const { res, json, env } = await price({ url: BOOK });
   assert.equal(res.status, 503);
   assert.equal(json.outcome, "no_credits");
-  assert.equal(json.message, "The demo has used its credits for this month — run it yourself with a free key.");
+  assert.equal(json.message, "The demo has used its credits for this month. Run it yourself with a free key.");
   assert.ok(json.commands.some((c) => c.includes("git clone")) && json.commands.some((c) => c.includes("node track.mjs")));
   assert.equal(scrapes().length, 0);
   assert.equal(new Headers(calls[0].init.headers).get("authorization"), `Bearer ${KEY}`);
