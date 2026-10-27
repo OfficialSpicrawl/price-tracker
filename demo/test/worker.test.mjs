@@ -143,6 +143,8 @@ test("GET / serves the page: hero, live check, examples, agent section, links, s
     "https://app.spicrawl.com",
     "https://github.com/OfficialSpicrawl/price-tracker",
     "font-family: \"Righteous\"",
+    'rel="preload" href="/fonts/righteous.woff2"',
+    "#top-h { font-family: var(--display)",
     "/fonts/geist.woff2",
     "/fonts/geist-mono.woff2",
     "prefers-reduced-motion",
@@ -229,7 +231,7 @@ test("/og.png and the self-hosted fonts are served from the Worker (no third par
   assert.equal(og.status, 200);
   assert.equal(og.headers.get("content-type"), "image/png");
   assert.deepEqual(Buffer.from(await og.arrayBuffer()), readFileSync(new URL("../../launch/social-preview.png", import.meta.url)), "the share image is launch/social-preview.png");
-  for (const path of ["/fonts/geist.woff2", "/fonts/geist-mono.woff2", "/fonts/geist-mono-symbols.woff2", "/fonts/wordmark.woff2"]) {
+  for (const path of ["/fonts/geist.woff2", "/fonts/geist-mono.woff2", "/fonts/geist-mono-symbols.woff2", "/fonts/righteous.woff2"]) {
     const res = await worker.fetch(new Request(`https://price-tracker.spicrawl.com${path}`), makeEnv(), ctx);
     assert.equal(res.status, 200, path);
     assert.equal(res.headers.get("content-type"), "font/woff2");

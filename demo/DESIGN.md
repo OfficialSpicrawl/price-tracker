@@ -48,8 +48,8 @@ Two of its 217 pieces, vendored (see `vendor/`): `sparkline` and `terminal`. Bot
 
 ## Type
 
-- Geist (400, 500, 600) for the headline and UI, Geist Mono (400, 500, 600) for the command, labels, prices and the ASCII pieces, both OFL (vercel/geist-font), self-hosted as woff2 subsets (latin, plus the symbols subset of Geist Mono for the block glyphs of the chart): about 64 KB for all four fonts, served by the Worker with `font-src 'self'`, so there is no third-party request. Righteous only for the wordmark, subset to its eight letters.
-- Headline 600, `clamp(40px, 7vw, 72px)`, 1.05 leading, -0.03em tracking. Body 16 px at 1.5. Small mono 13 px. The ASCII pieces size from their box (`cqw`), 18 px at most, so 60 columns fill the 640 px column and still fit at 360 px.
+- Geist (400, 500, 600) for the UI, Geist Mono (400, 500, 600) for the command, labels, prices and the ASCII pieces, both OFL (vercel/geist-font), self-hosted as woff2 subsets (latin, plus the symbols subset of Geist Mono for the block glyphs of the chart): about 64 KB for all four fonts, served by the Worker with `font-src 'self'`, so there is no third-party request. Righteous (OFL, the display face of the spicrawl.com landing page) for the hero headline and the wordmark, a basic-Latin subset of weight 400 (7 KB, `fonts/righteous.woff2`, preloaded, `font-display: swap`). Its fallback face `Righteous Fallback` is local Arial scaled to 105.3% with matching ascent and descent, so the swap does not move the layout; re-measure those numbers if the headline changes.
+- Headline in Righteous 400 (never bold: no 600 cut exists), `clamp(40px, 7vw, 72px)`, 1.05 leading, -0.01em tracking. Body 16 px at 1.5. Small mono 13 px. The ASCII pieces size from their box (`cqw`), 18 px at most, so 60 columns fill the 640 px column and still fit at 360 px.
 
 ## Grid and rhythm
 
