@@ -122,7 +122,7 @@ test("GET / serves the page: hero, live check, examples, agent section, links, s
   for (const needle of [
     "Get alerted when a price drops.",
     "Check price",
-    "Selector",
+    "CSS selector",
     "Try Spicrawl free",
     "1,000 credits a month",
     "Star on GitHub",
@@ -202,7 +202,7 @@ test("the ASCII pieces are vendored with their MIT notice, inline in the page's 
   assert.ok(html.includes(ASCII_JS.slice(0, 200).replace(/&/g, "&")) || html.includes("ascii.rest 0.4.0"), "the vendored script is in the page");
   assert.match(html, /<pre id="term" aria-hidden="true">╭─ price-tracker ─+╮/, "the terminal's first frame is in the HTML");
   assert.match(html, /<pre id="spark" aria-hidden="true">[^<]*£44\.99/, "the chart's first frame is the price after the drop");
-  assert.match(html, /ALERT Widget: £44\.99 is at or below your target £45\.00/);
+  assert.match(html, /ALERT Mug: £44\.99 is at or below your target £45\.00/);
   assert.equal(html.match(/<script nonce=/g).length, 1, "one nonce'd script, no external script tag for the pieces");
   assert.ok(!/<script[^>]+src=[^>]*ascii/.test(html));
   assert.deepEqual([priceAt(0, 8), priceAt(8.2, 8), priceAt(9, 8), priceAt(12, 8)], [59, 56, 48.1, 44.99]);

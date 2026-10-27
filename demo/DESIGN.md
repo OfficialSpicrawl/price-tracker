@@ -89,7 +89,7 @@ A generic model would land on: a hero with a gradient blob, three feature cards,
 ## Content rules
 
 - 120 words or fewer of visible copy; labels are one to three words; caveats live in tooltips and error states (the selector's tooltip, the blocked and out-of-credit messages).
-- No invented stores, stats or testimonials. The ASCII example uses a made-up "Widget" at example prices, labelled "Example data".
+- No invented stores, stats or testimonials. The ASCII example uses a made-up "Mug" at example prices, labelled "Example data".
 - No internal engine names anywhere on the page, in `/llms.txt`, or in the `/api/price` response.
 - No star count while the repo has no stars. The count is read server side (GitHub API, edge cached for 10 minutes) and printed into the HTML, so nothing shifts and the browser never calls GitHub.
 - Share image: `/og.png` redirects to `../launch/social-preview.png` in this repo.

@@ -1,15 +1,15 @@
 // Copied from ascii.rest 0.4.0 (https://ascii.rest/terminal/), MIT, (c) 2026 bas3line. See ascii.rest.LICENSE.
 // Changes: the session is price-tracker's own output (the real table and ALERT lines of track.mjs, example prices),
-// 60 columns by 13 rows, the first (and reduced-motion) frame is the finished alert instead of the middle of a typed command,
-// the alert holds for a few seconds before `clear`, and a `sync(now, drop)` option reports the playhead so a second piece can follow it.
+// 56 columns by 10 rows, the first (and reduced-motion) frame is the finished alert instead of the middle of a typed command,
+// the alert holds for a few seconds before `clear`, a `sync(now, drop)` option reports the playhead so a second piece can follow it, and `from` sets where play starts.
 export const meta = {
     name: "terminal",
     category: "ui",
     note: "a shell session: typed commands, output, scrolling, clear",
-    cols: 60,
-    rows: 13,
-    fps: 20,
-    options: { prompt: "$", title: "price-tracker", sync: null },
+    cols: 56,
+    rows: 10,
+    fps: 15,
+    options: { prompt: "$", title: "price-tracker", sync: null, from: null },
 };
 // Each command: what is typed, seconds before its output, then the output.
 // A number in the output is a pause before the next line.
@@ -17,17 +17,17 @@ const SESSION = [
     [
         "node track.mjs",
         0.9,
-        ["NAME    PRICE   CHANGE", "Widget  £59.00  new", "Credits used: 1 (999 left this month)"],
+        ["NAME    PRICE   CHANGE", "Mug     £59.00  new", "Credits used: 1 (999 left this month)"],
     ],
     [
         "node track.mjs",
         1.3,
         [
             "NAME    PRICE   CHANGE",
-            "Widget  £44.99  -14.01 (-23.7%)",
+            "Mug     £44.99  -14.01 (-23.7%)",
             0.25,
-            "ALERT Widget: price dropped £59.00 -> £44.99",
-            "ALERT Widget: £44.99 is at or below your target £45.00",
+            "ALERT Mug: price dropped £59.00 -> £44.99",
+            "ALERT Mug: £44.99 is at or below your target £45.00",
             "Credits used: 1 (998 left this month)",
             4,
         ],
@@ -44,7 +44,7 @@ function mulberry32(a) {
 }
 // The example price at `tau` seconds on the terminal's clock: 59.00 until the second run prints, then it ticks down.
 export const priceAt = (tau, drop) => (tau < drop ? 59 : tau < drop + 0.5 ? 56 : tau < drop + 1 ? 52.3 : tau < drop + 1.5 ? 48.1 : 44.99);
-export default function terminal({ prompt = meta.options.prompt, title = meta.options.title, sync = meta.options.sync } = {}) {
+export default function terminal({ prompt = meta.options.prompt, title = meta.options.title, sync = meta.options.sync, from = meta.options.from } = {}) {
     const { cols, rows } = meta;
     const inner = cols - 4;
     const view = rows - 2;
@@ -76,7 +76,8 @@ export default function terminal({ prompt = meta.options.prompt, title = meta.op
     const drop = steps[1].lines[1][0]; // when the second run prints its price row
     // Frame 0 is the finished alert: the second run's last line has just printed.
     const lastRun = steps[steps.length - 2];
-    const start = Math.max(lastRun.lines[lastRun.lines.length - 1][0] + 0.2, lastRun.lines[1][0] + 1.7); // and the chart has finished falling
+    const finished = Math.max(lastRun.lines[lastRun.lines.length - 1][0] + 0.2, lastRun.lines[1][0] + 1.7); // and the chart has finished falling
+    const start = typeof from === "number" ? from : finished; // `from: 0` plays the loop from its first keystroke
     const cell = (s) => (s.length > inner ? s.slice(0, inner) : s.padEnd(inner));
     return (t) => {
         const now = (((t + start) % period) + period) % period;

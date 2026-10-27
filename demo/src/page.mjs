@@ -25,7 +25,7 @@ const CSS = `
 :root {
   --ground: #16181B; --card: #1E2124; --line: #2E3135; --ctl: #6B7076;
   --ink: #F9F9F9; --muted: #A9ADB2; --dim: #8A8E94;
-  --r: 10px; --col: 640px; --gut: 16px; --ease: cubic-bezier(0.165, 0.84, 0.44, 1);
+  --r: 10px; --col: 576px; --gut: 16px; --ease: cubic-bezier(0.165, 0.84, 0.44, 1);
   --ui: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   color-scheme: dark;
@@ -78,7 +78,8 @@ h1 { font-size: clamp(40px, 7vw, 72px); line-height: 1.05; letter-spacing: -0.03
 .brand .name, .brand .sep { display: none; color: var(--muted); }
 @media (min-width: 420px) { .brand .name, .brand .sep { display: inline; } }
 .gh { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border: 1px solid var(--ctl); border-radius: var(--r); text-decoration: none; font: 500 14px/1 var(--ui); color: var(--ink); transition: border-color 0.2s; }
-.gh:hover { border-color: var(--ink); }
+.gh:hover { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+.gh:hover .count { border-left-color: var(--ctl); }
 .gh svg { width: 18px; height: 18px; fill: currentColor; flex: none; }
 .gh .full { display: none; }
 @media (min-width: 560px) { .gh .full { display: inline; } .gh .short { display: none; } }
@@ -86,8 +87,8 @@ h1 { font-size: clamp(40px, 7vw, 72px); line-height: 1.05; letter-spacing: -0.03
 .gh .count svg { width: 14px; height: 14px; }
 
 /* hero: one centered column, the command is the star */
-.hero { display: grid; justify-items: center; gap: 24px; text-align: center; padding: 56px 0 0; }
-@media (min-width: 720px) { .hero { padding-top: 96px; gap: 28px; } }
+.hero { display: grid; justify-items: center; gap: 24px; text-align: center; padding: 48px 0 0; }
+@media (min-width: 720px) { .hero { padding-top: 72px; gap: 24px; } }
 .install { width: 100%; max-width: var(--col); margin-top: 12px; text-align: left; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); overflow: clip; }
 .tabs { display: flex; border-bottom: 1px solid var(--line); }
 .tabs button { min-height: 44px; padding: 0 18px; background: transparent; border: 0; color: var(--muted); font: 500 13px var(--mono); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
@@ -96,19 +97,19 @@ h1 { font-size: clamp(40px, 7vw, 72px); line-height: 1.05; letter-spacing: -0.03
 .tabs button[aria-selected=true]:hover { background: rgba(255, 255, 255, 0.05); }
 .tabs button:focus-visible { outline-offset: -4px; }
 .panels { display: grid; }
-.panel { grid-area: 1 / 1; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; align-items: center; padding: 16px; }
+.panel { grid-area: 1 / 1; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; align-items: center; padding: 14px 16px; }
 .panel[hidden] { display: grid; visibility: hidden; }
 @media (max-width: 639px) { .panel[hidden] { display: none; } }
-.cmd { font-size: 14px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; min-height: calc(var(--n, 1) * 1.7em); }
+.cmd { font-size: 16px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; min-height: calc(var(--n, 1) * 1.7em); }
 .caret { display: inline-block; width: 0.55em; height: 1.05em; margin-left: 2px; vertical-align: -0.2em; background: var(--ink); animation: caret 0.526s steps(1) infinite; } /* 1.9 Hz */
 .cmd .p { color: var(--dim); user-select: none; }
 .cta { display: grid; justify-items: center; gap: 10px; margin-top: 8px; }
 
 /* the example: ASCII pieces from ascii.rest. Font size follows the box so the pieces fit down to 360px. */
-.stage { display: grid; justify-items: center; gap: 12px; padding: 72px 0 0; }
-@media (min-width: 720px) { .stage { padding-top: 88px; } }
+.stage { display: grid; justify-items: center; gap: 12px; padding: 56px 0 0; }
+@media (min-width: 720px) { .stage { padding-top: 64px; } }
 .art { width: min(100%, var(--col)); container-type: inline-size; display: grid; justify-items: center; gap: 20px; }
-.art pre { font: 500 min(18px, calc(100cqw / 36)) / 1.2 var(--mono); color: #D3D6D9; white-space: pre; }
+.art pre { font: 500 min(17.1px, calc(100cqw / 33.7)) / 1.15 var(--mono); color: #D3D6D9; white-space: pre; text-rendering: geometricPrecision; transform: translateZ(0); /* its own layer: grayscale antialiasing, so block glyphs show no colour fringes */ }
 
 /* live check: one input is the star */
 .try { max-width: var(--col); margin: 0 auto; padding: 112px 0 0; }
@@ -138,7 +139,7 @@ input::placeholder { color: var(--muted); opacity: 0.85; }
 input:focus-visible { border-color: var(--ink); outline-offset: 0; }
 .row .btn { min-height: 52px; }
 .opts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.chipb { min-height: 36px; padding: 0 12px; border-radius: var(--r); background: transparent; color: var(--ink); border: 1px solid var(--ctl); font: 400 13px var(--mono); cursor: pointer; transition: border-color 0.2s; }
+.chipb { min-height: 44px; padding: 0 12px; border-radius: var(--r); background: transparent; color: var(--ink); border: 1px solid var(--ctl); font: 400 13px var(--mono); cursor: pointer; transition: border-color 0.2s; }
 .chipb:hover { background: var(--ink); color: var(--ground); border-color: var(--ink); }
 .tbtn { min-height: 44px; padding: 0 4px; margin-left: auto; background: none; border: 0; color: var(--muted); font: 500 13px var(--mono); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 .tbtn:hover { color: var(--ink); }
@@ -268,13 +269,13 @@ const SCRIPT = `
   // The page ships frame 0 of both as text. Here they start playing; with reduced motion they stay as shipped.
   if (window.ASCII && !reduced) {
     // One clock: the terminal reports its playhead, and the chart reads the price at that moment, 500 ms a bar.
-    var clock = { now: 0, drop: 0 }, W = 37, vals = [];
+    var clock = { now: 0, drop: 0 }, W = 33, vals = [];
     for (var j = 0; j < W; j++) (function (j) {
       Object.defineProperty(vals, j, { enumerable: true, get: function () { return ASCII.priceAt(clock.now - (W - 1 - j) * 0.5, clock.drop); } });
     })(j);
     var sp = $("spark");
     ASCII.mount(sp, ASCII.pieces.sparkline, { series: [{ label: "price", values: vals, lo: 40, hi: 60, format: function (v) { return "\\u00a3" + v.toFixed(2); } }], range: false, ago: "earlier" });
-    ASCII.mount($("term"), ASCII.pieces.terminal, { sync: function (now, drop) { clock.now = now; clock.drop = drop; } });
+    ASCII.mount($("term"), ASCII.pieces.terminal, { from: 0, sync: function (now, drop) { clock.now = now; clock.drop = drop; } });
   }
 
   // ---- the live check -------------------------------------------------------------------------
@@ -387,7 +388,7 @@ export function compact(n) {
 // The sparkline's frame 0 shows the price after the drop.
 const clock = { now: 0, drop: 0 };
 const TERM_FRAME = terminalPiece.default({ sync: (now, drop) => Object.assign(clock, { now, drop }) })(0);
-const SPARK_STILL = Array.from({ length: 37 }, (_, i) => priceAt(clock.now - (36 - i) * 0.5, clock.drop));
+const SPARK_STILL = Array.from({ length: 33 }, (_, i) => priceAt(clock.now - (32 - i) * 0.5, clock.drop));
 const SPARK_FRAME = sparklinePiece.default({
   series: [{ label: "price", values: SPARK_STILL, lo: 40, hi: 60, format: (v) => `£${v.toFixed(2)}` }],
   range: false,
@@ -572,7 +573,7 @@ ${turnstile}
       </div>
       <div class="opts">
         ${examples}
-        <button type="button" class="tbtn" id="selbtn" aria-expanded="false" aria-controls="selwrap" title="For pages without structured data, give the CSS selector of the price">Selector</button>
+        <button type="button" class="tbtn" id="selbtn" aria-expanded="false" aria-controls="selwrap" title="For pages without structured data, give the CSS selector of the price">CSS selector</button>
       </div>
       <div class="sel" id="selwrap" hidden>
         <input id="sel" name="selector" type="text" maxlength="200" autocomplete="off" spellcheck="false" placeholder=".product .price" aria-label="CSS selector for the price">
